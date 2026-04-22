@@ -1,8 +1,16 @@
+// ══════════════════════════════════════════════════════════════════════════════
+// CONFIG — Edit everything here.
+// ══════════════════════════════════════════════════════════════════════════════
+
 const CONFIG = {
+
   page: {
     title: "Gateway Loader",
     badge: "403 Forbidden",
-    heading: { prefix: "ACCESS", highlight: "DENIED" },
+    heading: {
+      prefix: "ACCESS",
+      highlight: "DENIED",
+    },
     subtitle: [
       "This endpoint is restricted.",
       "Browser access is not permitted on this route.",
@@ -39,9 +47,9 @@ const CONFIG = {
   tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
 };
 
-// =====================
-// HELPERS
-// =====================
+// ══════════════════════════════════════════════════════════════════════════════
+// ENGINE
+// ══════════════════════════════════════════════════════════════════════════════
 
 function isBrowserRequest(userAgent = "") {
   const ua = userAgent.toLowerCase();
@@ -49,6 +57,8 @@ function isBrowserRequest(userAgent = "") {
   const isExcluded = CONFIG.browser.exclude.some(k => ua.includes(k));
   return isBrowser && !isExcluded;
 }
+
+// ── Loader ─────────────────────────────────────────
 
 function buildLoaderUrl() {
   const { baseUrl, owner, repo, branch, file } = CONFIG.loader;
@@ -59,9 +69,7 @@ function buildLoaderScript() {
   return `loadstring(game:HttpGet("${buildLoaderUrl()}"))()`;
 }
 
-// =====================
-// HTML BLOCK PAGE
-// =====================
+// ── HTML ───────────────────────────────────────────
 
 function buildBlockedPage() {
   const { page, fonts, tailwind } = CONFIG;
@@ -107,28 +115,26 @@ body {
 </html>`;
 }
 
-// =====================
-// MAIN HANDLER
-// =====================
+// ── Handler ────────────────────────────────────────
 
 export default async function handler(req, res) {
-  const ua = req.headers["user-agent"] || "";
+  const userAgent = req.headers["user-agent"] || "";
 
-  // 🔒 Security Headers
+  // 🔒 Security headers
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Cache-Control", "no-store");
 
   // ⛔ Block browser
-  if (isBrowserRequest(ua)) {
+  if (isBrowserRequest(userAgent)) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(buildBlockedPage());
   }
 
-  // ⚡ Delay kecil (anti spam)
-  await new Promise(r => setTimeout(r, 200));
+  // ⚡ Anti spam delay
+  await new Promise(r => setTimeout(r, 120));
 
-  // 🚀 Send loader
+  // 🚀 Loader
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   return res.status(200).send(buildLoaderScript());
 }
