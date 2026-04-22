@@ -1,22 +1,11 @@
 {
-    "routes": [{
-            "src": "^/flycer/?$",
-            "dest": "/api/gateway"
-        },
-        {
-            "src": "^/$",
-            "dest": "/api/gateway"
-        },
-        {
-            "src": "^/api/(.*)$",
-            "status": 404
-        },
-        {
-            "handle": "filesystem"
-        },
-        {
-            "src": "^/(.*)$",
-            "dest": "/api/gateway"
-        }
-    ]
+  "routes": [
+    {
+      "src": "^/api/(.*)$",
+      "dest": "/api/$1"
+    },
+    {
+      "handle": "filesystem"
+    }
+  ]
 }
