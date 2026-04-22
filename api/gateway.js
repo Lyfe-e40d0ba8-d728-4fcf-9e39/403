@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// CONFIG — Edit everything here.
+// CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -25,12 +25,9 @@ const CONFIG = {
     footer: "Flycer Loader · Restricted Access",
   },
 
+  // ✅ FIXED (langsung URL, tidak ribet lagi)
   loader: {
-    baseUrl: "https://raw.githubusercontent.com",
-    owner: "Lyfe-e40d0ba8-d728-4fcf-9e39",
-    repo: "Main",
-    branch: "main",
-    file: "Test",
+    url: "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/refs/heads/main/Test",
   },
 
   browser: {
@@ -60,9 +57,9 @@ function isBrowserRequest(userAgent = "") {
 
 // ── Loader ─────────────────────────────────────────
 
+// ✅ FIX: langsung return URL
 function buildLoaderUrl() {
-  const { baseUrl, owner, repo, branch, file } = CONFIG.loader;
-  return `${baseUrl}/${owner}/${repo}/refs/heads/${branch}/${file}`;
+  return CONFIG.loader.url;
 }
 
 function buildLoaderScript() {
