@@ -1,6 +1,10 @@
 {
   "routes": [
     {
+      "src": "^/flycer/?$",
+      "dest": "/api/gateway"
+    },
+    {
       "src": "^/api/(.*)$",
       "dest": "/api/$1"
     },
