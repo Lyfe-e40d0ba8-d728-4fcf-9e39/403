@@ -6,10 +6,14 @@
     },
     {
       "src": "^/api/(.*)$",
-      "dest": "/api/$1"
+      "status": 404
     },
     {
       "handle": "filesystem"
+    },
+    {
+      "src": "^/(.*)$",
+      "dest": "/index.html"
     }
   ]
 }
