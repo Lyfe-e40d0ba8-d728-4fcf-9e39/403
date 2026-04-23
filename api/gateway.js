@@ -57,8 +57,7 @@ const CONFIG = {
 //  ENGINE — Do NOT edit below unless you're modifying core behavior.
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── In-memory rate limit store ───────────────────────────────────────────────
-// (resets on cold start — sufficient for Vercel serverless)
+// ── Rate Limit Store ─────────────────────────────────────────────────────────
 
 const rateLimitStore = new Map();
 
@@ -86,7 +85,6 @@ function isRateLimited(ip) {
   const now = Date.now();
   const entry = rateLimitStore.get(ip) || { count: 0, start: now };
 
-  // Reset window if expired
   if (now - entry.start > windowMs) {
     rateLimitStore.set(ip, { count: 1, start: now });
     return false;
@@ -98,9 +96,7 @@ function isRateLimited(ip) {
   return entry.count > maxRequests;
 }
 
-// ── One-time Token System ─────────────────────────────────────────────────────
-// Each executor request gets a signed, single-use token.
-// The actual script is wrapped so it validates the token before executing.
+// ── Token & Hash ─────────────────────────────────────────────────────────────
 
 function generateToken() {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -111,47 +107,47 @@ function generateToken() {
   return token;
 }
 
+// Simple additive hash — 100% identical behavior in JS and Lua
 function simpleHash(str) {
-  let hash = 0x811c9dc5;
+  let hash = 0;
   for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = (hash * 0x01000193) >>> 0;
+    hash = (hash + str.charCodeAt(i)) % 65536;
   }
-  return hash.toString(16).padStart(8, "0");
+  return hash;
 }
 
 // ── Loader Builder ────────────────────────────────────────────────────────────
 
 function buildLoaderScript() {
   const token = generateToken();
-  const hash = simpleHash(token);
-  const url = CONFIG.loader.url;
+  const hash  = simpleHash(token);
+  const url   = CONFIG.loader.url;
 
-  // The script:
-  // 1. Validates token integrity via hash check (anti-edit)
-  // 2. Clears itself from memory after execution (anti-reuse)
-  // 3. Wraps the actual HttpGet so it can't be easily hooked
+  // Lua script:
+  // - Pure arithmetic hash (no bit32, no bitwise — compatible with ALL executors)
+  // - game:HttpGet colon syntax (works on PC & Mobile executors)
+  // - Nil all sensitive vars after use (anti-reuse)
+  // - assert() crashes if token is tampered (anti-edit)
   return [
-    `-- Flycer Secure Loader`,
     `local _t="${token}"`,
-    `local _h="${hash}"`,
+    `local _h=${hash}`,
     `local function _v(s)`,
-    `  local h=0x811c9dc5`,
+    `  local n=0`,
     `  for i=1,#s do`,
-    `    h=bit32.bxor(h,string.byte(s,i))`,
-    `    h=(h*0x01000193)%0x100000000`,
+    `    n=(n+string.byte(s,i))%65536`,
     `  end`,
-    `  return string.format("%08x",h)`,
+    `  return n`,
     `end`,
     `assert(_v(_t)==_h,"invalid token")`,
-    `local _g=game.HttpGet`,
-    `local _r=_g(game,"${url}")`,
-    `_t=nil _h=nil _g=nil`,
-    `loadstring(_r)()`,
+    `local _s=game:HttpGet("${url}")`,
+    `_t=nil`,
+    `_h=nil`,
+    `_v=nil`,
+    `loadstring(_s)()`,
   ].join("\n");
 }
 
-// ── Security Headers ─────────────────────────────────────────────────────────
+// ── Security Headers ──────────────────────────────────────────────────────────
 
 function applySecurityHeaders(res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
@@ -167,7 +163,7 @@ function applySecurityHeaders(res) {
 function buildBlockedPage() {
   const { page, fonts, tailwind } = CONFIG;
 
-  const subtitleHtml = page.subtitle.join("<br/>");
+  const subtitleHtml     = page.subtitle.join("<br/>");
   const warningLinesHtml = page.warning.lines.join("<br/>");
 
   return `<!DOCTYPE html>
@@ -374,9 +370,9 @@ function buildBlockedPage() {
 
 export default async function handler(req, res) {
   const userAgent = req.headers["user-agent"] || "";
-  const ip = getClientIp(req);
+  const ip        = getClientIp(req);
 
-  // 🔒 Security headers — always applied
+  // 🔒 Security headers — always applied first
   applySecurityHeaders(res);
 
   // ⛔ Block browser
@@ -385,10 +381,10 @@ export default async function handler(req, res) {
     return res.status(200).send(buildBlockedPage());
   }
 
-  // 🚫 Rate limit — executor only
+  // 🚫 Rate limit
   if (isRateLimited(ip)) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(429).send("-- rate limited");
+    return res.status(429).send("-- rate limited, try again later");
   }
 
   // ⏱ Anti-spam jitter (80–200ms)
