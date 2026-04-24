@@ -1,473 +1,1346 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptShield — Enterprise Protection System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-  <style>
-    /* ── Reset ── */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a2e;
+            --bg-card: #16162a;
+            --border: #2a2a4a;
+            --text-primary: #e4e4f0;
+            --text-secondary: #8888aa;
+            --text-muted: #555577;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+        }
 
-    /* ── Base ── */
-    body {
-      background: var(--bg-primary);
-      font-family: var(--font-body);
-      overflow: hidden;
-      height: 100vh;
-      width: 100vw;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+        body {
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
 
-    /* ── Radial vignette ── */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.65) 100%);
-      pointer-events: none;
-      z-index: 0;
-    }
+        /* ── Background Grid ── */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
 
-    /* ── Dot grid ── */
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
-      background-size: var(--grid-size) var(--grid-size);
-      pointer-events: none;
-      z-index: 0;
-    }
+        /* ── Header ── */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
 
-    /* ── Card ── */
-    .card {
-      position: relative;
-      z-index: 10;
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,0.03),
-        0 32px 80px rgba(0,0,0,0.7),
-        0 8px 24px rgba(0,0,0,0.5);
-      padding: 44px 48px 40px;
-      width: 420px;
-      max-width: 92vw;
-      animation: cardAppear var(--anim-card-duration) cubic-bezier(0.16,1,0.3,1) forwards;
-      text-align: center;
-    }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
 
-    @keyframes cardAppear {
-      from { opacity: 0; transform: translateY(18px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
 
-    /* ── Badge ── */
-    .badge-row {
-      display: flex;
-      justify-content: center;
-    }
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: var(--accent-bg);
-      border: 1px solid var(--accent-border);
-      border-radius: 99px;
-      padding: 4px 12px;
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: var(--accent-light);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      margin-bottom: 28px;
-    }
+        .logo-version {
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
 
-    .badge-dot {
-      width: 5px;
-      height: 5px;
-      background: var(--accent);
-      border-radius: 50%;
-      box-shadow: 0 0 6px var(--accent);
-      animation: pulse var(--anim-pulse-duration) ease-in-out infinite;
-    }
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--success);
+        }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50%      { opacity: 0.4; transform: scale(0.7); }
-    }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
 
-    /* ── Shield icon ── */
-    .shield-wrap {
-      width: 72px;
-      height: 72px;
-      margin: 0 auto 22px;
-      background: var(--accent-bg);
-      border: 1px solid var(--accent-border);
-      border-radius: var(--radius-md);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      animation: shieldGlow var(--anim-glow-duration) ease-in-out infinite;
-    }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
 
-    @keyframes shieldGlow {
-      0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow-off); }
-      50%      { box-shadow: 0 0 22px 4px var(--accent-glow-on); }
-    }
+        /* ── Auth Panel ── */
+        .auth-panel {
+            max-width: 480px;
+            margin: 80px auto;
+            padding: 40px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            position: relative;
+            z-index: 1;
+        }
 
-    .shield-wrap svg {
-      width: 36px;
-      height: 36px;
-    }
+        .auth-panel h2 {
+            margin-bottom: 8px;
+            font-size: 20px;
+        }
 
-    /* ── Title ── */
-    .title {
-      font-family: var(--font-body);
-      font-weight: 800;
-      font-size: 1.65rem;
-      letter-spacing: -0.01em;
-      color: var(--text-primary);
-      line-height: 1.15;
-      margin-bottom: 10px;
-    }
+        .auth-panel p {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
 
-    .title .highlight {
-      color: var(--accent);
-    }
+        /* ── Main Layout ── */
+        .main {
+            display: none;
+            position: relative;
+            z-index: 1;
+        }
 
-    /* ── Subtitle ── */
-    .subtitle {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-      font-weight: 400;
-      margin-bottom: 28px;
-    }
+        .main.active {
+            display: block;
+        }
 
-    /* ── Divider ── */
-    .divider {
-      width: 100%;
-      height: 1px;
-      background: var(--border-faint);
-      margin: 0 0 24px;
-    }
+        .nav {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+            display: flex;
+            gap: 0;
+            overflow-x: auto;
+        }
 
-    /* ── Warning box ── */
-    .warning-box {
-      background: var(--warning-bg);
-      border: 1px solid var(--warning-border);
-      border-radius: var(--radius-sm);
-      padding: 14px 18px;
-      font-size: 0.73rem;
-      color: var(--warning-text);
-      line-height: 1.75;
-      text-align: center;
-    }
+        .nav-item {
+            padding: 14px 20px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-size: 13px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
 
-    .warning-box strong {
-      color: var(--warning-bold);
-      font-weight: 600;
-    }
+        .nav-item:hover {
+            color: var(--text-primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
 
-    /* ── Footer note ── */
-    .footer-note {
-      margin-top: 22px;
-      font-size: 0.65rem;
-      color: var(--text-faint);
-      letter-spacing: 0.04em;
-      font-family: var(--font-mono);
-    }
-  </style>
+        .nav-item.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 32px;
+        }
+
+        /* ── Stats Grid ── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .stat-change {
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .stat-change.up { color: var(--success); }
+        .stat-change.down { color: var(--danger); }
+
+        /* ── Cards & Panels ── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* ── Form Elements ── */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 11px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ── Table ── */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            color: var(--text-muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(42, 42, 74, 0.5);
+        }
+
+        tr:hover td {
+            background: rgba(99, 102, 241, 0.03);
+        }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-active { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+        .badge-suspended { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+        .badge-expired { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+        .badge-revoked { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+
+        /* ── Console / Log ── */
+        .console {
+            background: #000;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .console-line {
+            margin-bottom: 2px;
+        }
+
+        .console-time {
+            color: var(--text-muted);
+            margin-right: 8px;
+        }
+
+        .console-type {
+            padding: 1px 6px;
+            border-radius: 3px;
+            margin-right: 8px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .type-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .type-error { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .type-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .type-info { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+
+        /* ── Toast ── */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .toast {
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            animation: slideIn 0.3s ease;
+            max-width: 380px;
+            border-left: 3px solid;
+        }
+
+        .toast-success { background: var(--bg-card); border-color: var(--success); color: var(--success); }
+        .toast-error { background: var(--bg-card); border-color: var(--danger); color: var(--danger); }
+        .toast-info { background: var(--bg-card); border-color: var(--info); color: var(--info); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* ── Sections ── */
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        /* ── Code Block ── */
+        .code-block {
+            background: #000;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre;
+            color: var(--success);
+            position: relative;
+        }
+
+        .code-block .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .header { padding: 12px 16px; }
+            .content { padding: 16px; }
+            .form-row { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* ── Loading ── */
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state p {
+            margin-top: 8px;
+            font-size: 13px;
+        }
+    </style>
 </head>
 <body>
 
-  <!-- ── Main Card ── -->
-  <div class="card">
-
-    <!-- Badge -->
-    <div class="badge-row">
-      <div class="badge">
-        <div class="badge-dot"></div>
-        <span data-bind="badge"></span>
-      </div>
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">🛡</div>
+            <span class="logo-text">ScriptShield</span>
+            <span class="logo-version">v2.0</span>
+        </div>
+        <div class="header-status" id="statusIndicator">
+            <span class="status-dot"></span>
+            <span>System Operational</span>
+        </div>
     </div>
 
-    <!-- Shield Icon -->
-    <div class="shield-wrap">
-      <svg data-bind="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"></svg>
+    <!-- Auth Panel -->
+    <div class="auth-panel" id="authPanel">
+        <h2>🔐 Admin Access</h2>
+        <p>Enter your admin key to access the dashboard</p>
+        <div class="form-group">
+            <label class="form-label">Admin Key</label>
+            <input type="password" class="form-input" id="adminKeyInput" 
+                   placeholder="Enter admin key..." autocomplete="off">
+        </div>
+        <button class="btn btn-primary" onclick="authenticate()" style="width:100%">
+            Authenticate
+        </button>
     </div>
 
-    <!-- Title -->
-    <div class="title" data-bind="title"></div>
+    <!-- Main Dashboard -->
+    <div class="main" id="mainDashboard">
+        <div class="nav">
+            <div class="nav-item active" onclick="showSection('overview')">📊 Overview</div>
+            <div class="nav-item" onclick="showSection('keys')">🔑 Keys</div>
+            <div class="nav-item" onclick="showSection('scripts')">📜 Scripts</div>
+            <div class="nav-item" onclick="showSection('security')">🛡 Security</div>
+            <div class="nav-item" onclick="showSection('logs')">📋 Logs</div>
+            <div class="nav-item" onclick="showSection('integration')">🔗 Integration</div>
+        </div>
 
-    <!-- Subtitle -->
-    <div class="subtitle" data-bind="subtitle"></div>
+        <div class="content">
 
-    <!-- Divider -->
-    <div class="divider"></div>
+            <!-- OVERVIEW SECTION -->
+            <div class="section active" id="section-overview">
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Keys</div>
+                        <div class="stat-value" id="statKeys">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Active Sessions</div>
+                        <div class="stat-value" id="statSessions">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Scripts Stored</div>
+                        <div class="stat-value" id="statScripts">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Blocked IPs</div>
+                        <div class="stat-value" id="statBlocked">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Auth (1h)</div>
+                        <div class="stat-value" id="statAuth1h">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Loads (1h)</div>
+                        <div class="stat-value" id="statLoads1h">0</div>
+                    </div>
+                </div>
 
-    <!-- Warning Box -->
-    <div class="warning-box" data-bind="warning"></div>
+                <div class="card">
+                    <div class="card-header">
+                        <span>Recent Activity</span>
+                        <button class="btn btn-sm btn-outline" onclick="refreshDashboard()">Refresh</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="console" id="activityLog">
+                            <div class="empty-state">
+                                <p>No recent activity</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-    <!-- Footer -->
-    <div class="footer-note" data-bind="footer"></div>
+            <!-- KEYS SECTION -->
+            <div class="section" id="section-keys">
+                <div class="card">
+                    <div class="card-header">
+                        <span>Generate Keys</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Key Prefix</label>
+                                <input type="text" class="form-input" id="keyPrefix" value="SS" maxlength="5">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Count</label>
+                                <input type="number" class="form-input" id="keyCount" value="1" min="1" max="50">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Type</label>
+                                <select class="form-select" id="keyType">
+                                    <option value="standard">Standard</option>
+                                    <option value="premium">Premium</option>
+                                    <option value="trial">Trial</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Duration</label>
+                                <select class="form-select" id="keyDuration">
+                                    <option value="lifetime">Lifetime</option>
+                                    <option value="1h">1 Hour</option>
+                                    <option value="1d">1 Day</option>
+                                    <option value="7d">7 Days</option>
+                                    <option value="30d">30 Days</option>
+                                    <option value="90d">90 Days</option>
+                                    <option value="1y">1 Year</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Note (optional)</label>
+                            <input type="text" class="form-input" id="keyNote" placeholder="e.g., Customer name">
+                        </div>
+                        <button class="btn btn-primary" onclick="createKeys()">⚡ Generate Keys</button>
+                    </div>
+                </div>
 
-  </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span>All Keys</span>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline" onclick="loadKeys()">Refresh</button>
+                            <button class="btn btn-sm btn-outline" onclick="exportKeys()">Export CSV</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Key</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>HWID</th>
+                                        <th>Uses</th>
+                                        <th>Expires</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="keysTable">
+                                    <tr><td colspan="7" class="empty-state">No keys yet</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-  <script>
-    // ══════════════════════════════════════════════════════════════════
-    //  CONFIG — Edit everything here. Nothing else needs to change.
-    // ══════════════════════════════════════════════════════════════════
+            <!-- SCRIPTS SECTION -->
+            <div class="section" id="section-scripts">
+                <div class="card">
+                    <div class="card-header">
+                        <span>Upload Script (AES-256 Encrypted)</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Script ID</label>
+                                <input type="text" class="form-input" id="scriptId" placeholder="e.g., main_script">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-input" id="scriptName" placeholder="e.g., My Script">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Version</label>
+                            <input type="text" class="form-input" id="scriptVersion" value="1.0.0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Script Source Code</label>
+                            <textarea class="form-textarea" id="scriptSource" placeholder="-- Paste your Lua script here..." style="min-height: 200px;"></textarea>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" onclick="uploadScript()">🔒 Encrypt & Store</button>
+                            <button class="btn btn-outline" onclick="updateScript()">📝 Update Existing</button>
+                        </div>
+                    </div>
+                </div>
 
-    const CONFIG = {
+                <div class="card">
+                    <div class="card-header">
+                        <span>Stored Scripts</span>
+                        <button class="btn btn-sm btn-outline" onclick="loadScripts()">Refresh</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Version</th>
+                                        <th>Size</th>
+                                        <th>Loads</th>
+                                        <th>Updated</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="scriptsTable">
+                                    <tr><td colspan="7" class="empty-state">No scripts yet</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-      // ── External Resources ──
-      resources: {
-        tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-        fonts: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
-      },
+            <!-- SECURITY SECTION -->
+            <div class="section" id="section-security">
+                <div class="card">
+                    <div class="card-header">
+                        <span>IP Blacklist</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">IP Address</label>
+                                <input type="text" class="form-input" id="blacklistIP" placeholder="e.g., 1.2.3.4">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Reason</label>
+                                <input type="text" class="form-input" id="blacklistReason" placeholder="e.g., Abuse">
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-danger btn-sm" onclick="blacklistIPAction('add')">🚫 Blacklist IP</button>
+                            <button class="btn btn-outline btn-sm" onclick="blacklistIPAction('remove')">✅ Remove from Blacklist</button>
+                        </div>
+                    </div>
+                </div>
 
-      // ── Page Meta ──
-      meta: {
-        title: "Gateway Loader",
-      },
+                <div class="card">
+                    <div class="card-header">
+                        <span>Security Features</span>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+                            <div style="padding: 16px; border: 1px solid var(--border); border-radius: 8px;">
+                                <div style="color: var(--success); font-weight: 700; margin-bottom: 8px;">✅ AES-256-GCM Encryption</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Scripts encrypted at rest with PBKDF2 key derivation (100K iterations)</div>
+                            </div>
+                            <div style="padding: 16px; border: 1px solid var(--border); border-radius: 8px;">
+                                <div style="color: var(--success); font-weight: 700; margin-bottom: 8px;">✅ Rate Limiting</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">30 req/min general, 10 req/min loader, 5 req/5min auth</div>
+                            </div>
+                            <div style="padding: 16px; border: 1px solid var(--border); border-radius: 8px;">
+                                <div style="color: var(--success); font-weight: 700; margin-bottom: 8px;">✅ HWID Locking</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Auto-bind on first use, max 3 resets with 24h cooldown</div>
+                            </div>
+                            <div style="padding: 16px; border: 1px solid var(--border); border-radius: 8px;">
+                                <div style="color: var(--success); font-weight: 700; margin-bottom: 8px;">✅ Anti-Bypass</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Request integrity, signature verification, replay protection</div>
+                            </div>
+                            <div style="padding: 16px; border: 1px solid var(--border); border-radius: 8px;">
+                                <div style="color: var(--success); font-weight: 700; margin-bottom: 8px;">✅ Session Fingerprinting</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">Browser fingerprint comparison with tolerance matching</div>
+                            </div>
+                            <div style="padding: 16px; border: 1px solid var(--border); border-radius: 8px;">
+                                <div style="color: var(--success); font-weight: 700; margin-bottom: 8px;">✅ 3-Layer Obfuscation</div>
+                                <div style="font-size: 12px; color: var(--text-secondary);">String encoding, variable randomization, control flow obfuscation</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-      // ── Page Content ──
-      content: {
-        badge: "403 Forbidden",
-        title: {
-          prefix: "ACCESS",
-          highlight: "DENIED",
+            <!-- LOGS SECTION -->
+            <div class="section" id="section-logs">
+                <div class="card">
+                    <div class="card-header">
+                        <span>Event Log</span>
+                        <div class="btn-group">
+                            <select class="form-select" id="logFilter" style="width: auto; padding: 4px 10px; font-size: 11px;">
+                                <option value="">All Events</option>
+                                <option value="auth_success">Auth Success</option>
+                                <option value="script_loaded">Script Loaded</option>
+                                <option value="rate_limited">Rate Limited</option>
+                                <option value="bypass_attempt">Bypass Attempt</option>
+                                <option value="hwid_mismatch">HWID Mismatch</option>
+                                <option value="ip_blocked">IP Blocked</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline" onclick="loadEvents()">Refresh</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="console" id="eventLog" style="max-height: 600px;">
+                            <div class="empty-state"><p>No events yet</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INTEGRATION SECTION -->
+            <div class="section" id="section-integration">
+                <div class="card">
+                    <div class="card-header">
+                        <span>Lua Loader Script</span>
+                    </div>
+                    <div class="card-body">
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+                            Copy this loader script. It handles authentication, HWID binding, and script loading automatically.
+                        </p>
+                        <div class="code-block" id="loaderCode">
+<button class="copy-btn" onclick="copyLoader()">Copy</button>
+-- ScriptShield Loader v2.0
+-- Place this in your executor
+
+local API_URL = "<span class="api-url">https://your-domain.vercel.app</span>"
+local SCRIPT_KEY = "YOUR_KEY_HERE"
+
+-- Auto HWID
+local function getHWID()
+    local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+    if not hwid or hwid == "" then
+        hwid = game:GetService("Players").LocalPlayer.UserId
+    end
+    return tostring(hwid)
+end
+
+-- HTTP Request
+local function request(data)
+    local http = game:GetService("HttpService")
+    local response = (syn and syn.request or http_request or request)({
+        Url = API_URL .. "/api/gateway",
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json",
         },
-        subtitle: [
-          "This endpoint is restricted.",
-          "Browser access is not permitted on this route.",
-        ],
-        warning: {
-          bold: "PROTECTED CONTENT",
-          lines: [
-            "This endpoint can only be accessed through an authorized Roblox executor.",
-            "Browser access is blocked for security reasons.",
-          ],
-        },
-        footer: "Flycer Loader \u00A0·\u00A0 Restricted Access",
-      },
+        Body = http:JSONEncode(data)
+    })
+    return http:JSONDecode(response.Body)
+end
 
-      // ── Icon (SVG children) ──
-      icon: {
-        paths: [
-          {
-            tag: "path",
-            attrs: {
-              d: "M12 2L4 6V12C4 16.4 7.4 20.5 12 22C16.6 20.5 20 16.4 20 12V6L12 2Z",
-              fill: "rgba(239,68,68,0.12)",
-              stroke: "currentColor",
-              "stroke-width": "1.5",
-              "stroke-linejoin": "round",
-            },
-          },
-          {
-            tag: "line",
-            attrs: {
-              x1: "9", y1: "12", x2: "11", y2: "14",
-              stroke: "currentColor",
-              "stroke-width": "1.8",
-              "stroke-linecap": "round",
-            },
-          },
-          {
-            tag: "line",
-            attrs: {
-              x1: "11", y1: "14", x2: "15", y2: "10",
-              stroke: "currentColor",
-              "stroke-width": "1.8",
-              "stroke-linecap": "round",
-            },
-          },
-        ],
-      },
+-- Execute
+local function loadScript()
+    local result = request({
+        action = "execute",
+        key = SCRIPT_KEY,
+        hwid = getHWID()
+    })
+    
+    if result.success and result.script then
+        print("[ScriptShield] ✅ Authenticated | Version: " .. 
+              (result.meta and result.meta.version or "1.0"))
+        print("[ScriptShield] ⚡ Load time: " .. 
+              (result.meta and result.meta.loadTimeMs or "?") .. "ms")
+        loadstring(result.script)()
+    else
+        warn("[ScriptShield] ❌ " .. 
+             (result.error and result.error.message or "Unknown error"))
+    end
+end
 
-      // ── Theme ──
-      theme: {
-        fonts: {
-          body: "'Inter', sans-serif",
-          mono: "'JetBrains Mono', monospace",
-        },
-        colors: {
-          bgPrimary:     "#0d0d0f",
-          bgCard:        "#141416",
-          accent:        "#ef4444",
-          accentLight:   "#f87171",
-          accentBg:      "rgba(239,68,68,0.1)",
-          accentBorder:  "rgba(239,68,68,0.22)",
-          accentGlowOff: "rgba(239,68,68,0)",
-          accentGlowOn:  "rgba(239,68,68,0.15)",
-          textPrimary:   "#ffffff",
-          textMuted:     "rgba(255,255,255,0.35)",
-          textFaint:     "rgba(255,255,255,0.15)",
-          borderSubtle:  "rgba(255,255,255,0.07)",
-          borderFaint:   "rgba(255,255,255,0.06)",
-          warningBg:     "rgba(239,68,68,0.06)",
-          warningBorder: "rgba(239,68,68,0.16)",
-          warningText:   "rgba(255,150,150,0.85)",
-          warningBold:   "#fca5a5",
-        },
-        radius: {
-          sm: "10px",
-          md: "18px",
-          lg: "16px",
-        },
-        grid: {
-          size: "28px",
-        },
-        animation: {
-          cardDuration:  "0.6s",
-          pulseDuration: "1.8s",
-          glowDuration:  "2.4s",
-        },
-      },
-    };
+loadScript()</div>
+                    </div>
+                </div>
 
-    // ══════════════════════════════════════════════════════════════════
-    //  ENGINE — Reads CONFIG and builds everything automatically.
-    //  Do NOT edit below unless you're modifying core behavior.
-    // ══════════════════════════════════════════════════════════════════
+                <div class="card">
+                    <div class="card-header">
+                        <span>API Documentation</span>
+                    </div>
+                    <div class="card-body" style="font-size: 13px; line-height: 1.8;">
+                        <h3 style="margin-bottom: 12px; color: var(--accent);">Endpoints</h3>
+                        
+                        <p><strong>POST /api/gateway</strong> — Main gateway (recommended)</p>
+                        <p><strong>POST /api/auth/validate</strong> — Key validation only</p>
+                        <p><strong>POST /api/scripts/loader</strong> — Script delivery (needs session)</p>
+                        <p><strong>POST /api/admin/keys</strong> — Key management</p>
+                        <p><strong>POST /api/admin/dashboard</strong> — Dashboard data</p>
+                        
+                        <h3 style="margin: 20px 0 12px; color: var(--accent);">Quick Start</h3>
+                        <p>1. Set <code>MASTER_KEY</code> and <code>ADMIN_KEY</code> in Vercel Environment Variables</p>
+                        <p>2. Store a script via the Scripts tab</p>
+                        <p>3. Generate keys via the Keys tab</p>
+                        <p>4. Give users the Lua loader with their key</p>
+                        
+                        <h3 style="margin: 20px 0 12px; color: var(--accent);">Environment Variables</h3>
+                        <p><code>MASTER_KEY</code> — Master encryption key (REQUIRED)</p>
+                        <p><code>ADMIN_KEY</code> — Admin access key (defaults to MASTER_KEY)</p>
+                        <p><code>REQUIRE_SIGNATURES</code> — Enable request signing</p>
+                        <p><code>STRICT_UA_CHECK</code> — Enable User-Agent checking</p>
+                    </div>
+                </div>
+            </div>
 
-    (function initialize() {
-      injectResources();
-      applyMeta();
-      applyThemeVariables();
-      renderContent();
-      renderIcon();
-    })();
+        </div>
+    </div>
 
-    // ── Resource Injection ──────────────────────────────────────────
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
-    function injectResources() {
-      const { tailwind, fonts } = CONFIG.resources;
-
-      if (tailwind) {
-        const script = document.createElement("script");
-        script.src = tailwind;
-        document.head.appendChild(script);
-      }
-
-      if (fonts) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = fonts;
-        document.head.appendChild(link);
-      }
-    }
-
-    // ── Meta ────────────────────────────────────────────────────────
-
-    function applyMeta() {
-      document.title = CONFIG.meta.title;
-    }
-
-    // ── Theme Variables ─────────────────────────────────────────────
-
-    function applyThemeVariables() {
-      const { colors, radius, grid, animation, fonts } = CONFIG.theme;
-      const root = document.documentElement.style;
-
-      applyVariables(root, {
-        "--bg-primary":      colors.bgPrimary,
-        "--bg-card":         colors.bgCard,
-        "--accent":          colors.accent,
-        "--accent-light":    colors.accentLight,
-        "--accent-bg":       colors.accentBg,
-        "--accent-border":   colors.accentBorder,
-        "--accent-glow-off": colors.accentGlowOff,
-        "--accent-glow-on":  colors.accentGlowOn,
-        "--text-primary":    colors.textPrimary,
-        "--text-muted":      colors.textMuted,
-        "--text-faint":      colors.textFaint,
-        "--border-subtle":   colors.borderSubtle,
-        "--border-faint":    colors.borderFaint,
-        "--warning-bg":      colors.warningBg,
-        "--warning-border":  colors.warningBorder,
-        "--warning-text":    colors.warningText,
-        "--warning-bold":    colors.warningBold,
-        "--radius-sm":       radius.sm,
-        "--radius-md":       radius.md,
-        "--radius-lg":       radius.lg,
-        "--grid-size":       grid.size,
-        "--font-body":       fonts.body,
-        "--font-mono":       fonts.mono,
-        "--anim-card-duration":  animation.cardDuration,
-        "--anim-pulse-duration": animation.pulseDuration,
-        "--anim-glow-duration":  animation.glowDuration,
-      });
-    }
-
-    // ── Content Rendering ───────────────────────────────────────────
-
-    function renderContent() {
-      const { content } = CONFIG;
-
-      setBind("badge", content.badge);
-
-      setBind("title", [
-        `${content.title.prefix} `,
-        `<span class="highlight">${content.title.highlight}</span>`,
-      ].join(""), true);
-
-      setBind("subtitle", content.subtitle.join("<br/>"), true);
-
-      setBind("warning", [
-        `<strong>${content.warning.bold}</strong>`,
-        ...content.warning.lines,
-      ].join("<br/>"), true);
-
-      setBind("footer", content.footer);
-    }
-
-    // ── Icon Rendering ──────────────────────────────────────────────
-
-    function renderIcon() {
-      const svg = document.querySelector('[data-bind="icon"]');
-      if (!svg) return;
-
-      svg.style.color = CONFIG.theme.colors.accent;
-
-      CONFIG.icon.paths.forEach(({ tag, attrs }) => {
-        const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
-        Object.entries(attrs).forEach(([key, value]) => {
-          el.setAttribute(key, value);
+    <script>
+        // ════════════════════════════════════════
+        // DASHBOARD APPLICATION
+        // ════════════════════════════════════════
+        
+        let adminKey = '';
+        const API = window.location.origin;
+        
+        // ── Authentication ──
+        function authenticate() {
+            adminKey = document.getElementById('adminKeyInput').value;
+            if (!adminKey) {
+                toast('Enter an admin key', 'error');
+                return;
+            }
+            
+            apiCall('admin.stats', {}).then(data => {
+                if (data.success) {
+                    document.getElementById('authPanel').style.display = 'none';
+                    document.getElementById('mainDashboard').classList.add('active');
+                    toast('Authenticated successfully', 'success');
+                    refreshDashboard();
+                } else {
+                    toast('Invalid admin key', 'error');
+                }
+            }).catch(() => {
+                toast('Connection failed', 'error');
+            });
+        }
+        
+        document.getElementById('adminKeyInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') authenticate();
         });
-        svg.appendChild(el);
-      });
-    }
-
-    // ── Utilities ───────────────────────────────────────────────────
-
-    function applyVariables(target, map) {
-      Object.entries(map).forEach(([prop, value]) => {
-        target.setProperty(prop, value);
-      });
-    }
-
-    function setBind(key, value, isHTML = false) {
-      const el = document.querySelector(`[data-bind="${key}"]`);
-      if (!el) return;
-      if (isHTML) {
-        el.innerHTML = value;
-      } else {
-        el.textContent = value;
-      }
-    }
-  </script>
-
+        
+        // ── API Call ──
+        async function apiCall(action, data = {}) {
+            try {
+                const response = await fetch(`${API}/api/gateway`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': adminKey,
+                    },
+                    body: JSON.stringify({ action, adminKey, ...data }),
+                });
+                return await response.json();
+            } catch (err) {
+                console.error('API Error:', err);
+                return { success: false, error: { message: err.message } };
+            }
+        }
+        
+        // ── Navigation ──
+        function showSection(name) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            
+            document.getElementById(`section-${name}`).classList.add('active');
+            event.target.classList.add('active');
+            
+            // Load data for section
+            if (name === 'keys') loadKeys();
+            if (name === 'scripts') loadScripts();
+            if (name === 'logs') loadEvents();
+        }
+        
+        // ── Dashboard Refresh ──
+        async function refreshDashboard() {
+            const data = await apiCall('admin.stats');
+            if (data.success) {
+                const s = data.stats;
+                document.getElementById('statKeys').textContent = s.totalKeys || 0;
+                document.getElementById('statSessions').textContent = s.activeSessions || 0;
+                document.getElementById('statScripts').textContent = s.totalScripts || 0;
+                document.getElementById('statBlocked').textContent = s.blacklistedIPs || 0;
+            }
+            
+            loadEvents();
+        }
+        
+        // ── Key Management ──
+        async function createKeys() {
+            const data = await apiCall('admin.createKey', {
+                prefix: document.getElementById('keyPrefix').value || 'SS',
+                count: parseInt(document.getElementById('keyCount').value) || 1,
+                type: document.getElementById('keyType').value,
+                duration: document.getElementById('keyDuration').value,
+                note: document.getElementById('keyNote').value,
+            });
+            
+            if (data.success) {
+                const keyList = data.keys.map(k => k.key).join('\n');
+                toast(`${data.keys.length} key(s) created!`, 'success');
+                
+                // Show keys in a prompt
+                const display = data.keys.map(k => k.key).join('\n');
+                if (data.keys.length <= 5) {
+                    alert('Generated Keys:\n\n' + display);
+                } else {
+                    // Copy to clipboard
+                    navigator.clipboard.writeText(display);
+                    toast('Keys copied to clipboard', 'info');
+                }
+                
+                loadKeys();
+            } else {
+                toast(data.error?.message || 'Failed to create keys', 'error');
+            }
+        }
+        
+        async function loadKeys() {
+            const res = await fetch(`${API}/api/admin/keys`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': adminKey,
+                },
+                body: JSON.stringify({ action: 'list', adminKey }),
+            });
+            const data = await res.json();
+            
+            if (data.success && data.keys) {
+                const tbody = document.getElementById('keysTable');
+                if (data.keys.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No keys yet. Generate some above!</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.keys.map(k => `
+                    <tr>
+                        <td style="font-size:11px; font-family: monospace;">${k.key || k.id}</td>
+                        <td>${k.type}</td>
+                        <td><span class="badge badge-${k.status}">${k.status}</span></td>
+                        <td style="font-size:11px;">${k.hwid ? '🔒 Bound' : '🔓 Open'}</td>
+                        <td>${k.totalExecutions || 0}</td>
+                        <td style="font-size:11px;">${k.expiresAt ? new Date(k.expiresAt).toLocaleDateString() : '∞'}</td>
+                        <td>
+                            <div class="btn-group">
+                                ${k.status === 'active' 
+                                    ? `<button class="btn btn-sm btn-outline" onclick="toggleKey('${k.id || k.key}', 'suspend')">Suspend</button>`
+                                    : `<button class="btn btn-sm btn-outline" onclick="toggleKey('${k.id || k.key}', 'activate')">Activate</button>`
+                                }
+                                <button class="btn btn-sm btn-danger" onclick="deleteKey('${k.id || k.key}')">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+        
+        async function toggleKey(keyId, action) {
+            const res = await fetch(`${API}/api/admin/keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': adminKey },
+                body: JSON.stringify({ action, keyId, adminKey }),
+            });
+            const data = await res.json();
+            toast(data.message || `Key ${action}d`, data.success ? 'success' : 'error');
+            loadKeys();
+        }
+        
+        async function deleteKey(keyId) {
+            if (!confirm('Delete this key? This cannot be undone.')) return;
+            const res = await fetch(`${API}/api/admin/keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': adminKey },
+                body: JSON.stringify({ action: 'delete', keyId, adminKey }),
+            });
+            const data = await res.json();
+            toast(data.message || 'Key deleted', data.success ? 'success' : 'error');
+            loadKeys();
+        }
+        
+        async function exportKeys() {
+            const res = await fetch(`${API}/api/admin/analytics`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': adminKey },
+                body: JSON.stringify({ action: 'export', adminKey }),
+            });
+            const text = await res.text();
+            
+            const blob = new Blob([text], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'keys_export.csv';
+            a.click();
+            toast('Keys exported', 'success');
+        }
+        
+        // ── Script Management ──
+        async function uploadScript() {
+            const source = document.getElementById('scriptSource').value;
+            if (!source) { toast('Enter script source code', 'error'); return; }
+            
+            const data = await apiCall('admin.storeScript', {
+                scriptId: document.getElementById('scriptId').value || undefined,
+                name: document.getElementById('scriptName').value || 'Script',
+                version: document.getElementById('scriptVersion').value || '1.0.0',
+                source,
+            });
+            
+            if (data.success) {
+                toast('Script encrypted & stored!', 'success');
+                document.getElementById('scriptSource').value = '';
+                loadScripts();
+            } else {
+                toast(data.error?.message || 'Upload failed', 'error');
+            }
+        }
+        
+        async function updateScript() {
+            const scriptId = document.getElementById('scriptId').value;
+            const source = document.getElementById('scriptSource').value;
+            if (!scriptId || !source) { toast('Script ID and source required', 'error'); return; }
+            
+            const res = await fetch(`${API}/api/scripts/encrypt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': adminKey },
+                body: JSON.stringify({
+                    action: 'update',
+                    adminKey,
+                    scriptId,
+                    source,
+                    name: document.getElementById('scriptName').value,
+                    version: document.getElementById('scriptVersion').value,
+                }),
+            });
+            const data = await res.json();
+            toast(data.message || (data.success ? 'Updated!' : 'Failed'), data.success ? 'success' : 'error');
+            if (data.success) loadScripts();
+        }
+        
+        async function loadScripts() {
+            const res = await fetch(`${API}/api/scripts/encrypt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': adminKey },
+                body: JSON.stringify({ action: 'list', adminKey }),
+            });
+            const data = await res.json();
+            
+            if (data.success && data.scripts) {
+                const tbody = document.getElementById('scriptsTable');
+                if (data.scripts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No scripts stored yet</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.scripts.map(s => `
+                    <tr>
+                        <td style="font-size:11px;">${s.id}</td>
+                        <td>${s.name}</td>
+                        <td><span class="badge badge-active">v${s.version}</span></td>
+                        <td>${(s.size / 1024).toFixed(1)} KB</td>
+                        <td>${s.accessCount || 0}</td>
+                        <td style="font-size:11px;">${new Date(s.updatedAt).toLocaleString()}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deleteScript('${s.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+        
+        async function deleteScript(scriptId) {
+            if (!confirm('Delete this script?')) return;
+            const res = await fetch(`${API}/api/scripts/encrypt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': adminKey },
+                body: JSON.stringify({ action: 'delete', scriptId, adminKey }),
+            });
+            const data = await res.json();
+            toast(data.message || 'Script deleted', data.success ? 'success' : 'error');
+            loadScripts();
+        }
+        
+        // ── Events ──
+        async function loadEvents() {
+            const filter = document.getElementById('logFilter')?.value || '';
+            const res = await fetch(`${API}/api/admin/dashboard`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': adminKey },
+                body: JSON.stringify({ action: 'events', type: filter || undefined, adminKey }),
+            });
+            const data = await res.json();
+            
+            if (data.success && data.events) {
+                const container = document.getElementById('eventLog');
+                
+                if (data.events.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><p>No events found</p></div>';
+                    
+                    // Also update activity log on overview
+                    const activityLog = document.getElementById('activityLog');
+                    if (activityLog) activityLog.innerHTML = '<div class="empty-state"><p>No recent activity</p></div>';
+                    return;
+                }
+                
+                const typeColors = {
+                    auth_success: 'success',
+                    script_loaded: 'success',
+                    execute_success: 'success',
+                    keys_created: 'info',
+                    rate_limited: 'warning',
+                    bypass_attempt: 'error',
+                    hwid_mismatch: 'error',
+                    ip_blocked: 'error',
+                    invalid_key: 'warning',
+                    auto_blacklist: 'error',
+                };
+                
+                const html = data.events.slice(0, 100).map(e => {
+                    const time = new Date(e.timestamp).toLocaleTimeString();
+                    const type = typeColors[e.type] || 'info';
+                    return `<div class="console-line">
+                        <span class="console-time">${time}</span>
+                        <span class="console-type type-${type}">${e.type}</span>
+                        <span>${e.ip || ''} ${e.keyId ? `key:${e.keyId.substring(0,12)}...` : ''}</span>
+                    </div>`;
+                }).join('');
+                
+                container.innerHTML = html;
+                
+                // Update activity log on overview too
+                const activityLog = document.getElementById('activityLog');
+                if (activityLog) {
+                    activityLog.innerHTML = data.events.slice(0, 20).map(e => {
+                        const time = new Date(e.timestamp).toLocaleTimeString();
+                        const type = typeColors[e.type] || 'info';
+                        return `<div class="console-line">
+                            <span class="console-time">${time}</span>
+                            <span class="console-type type-${type}">${e.type}</span>
+                            <span>${e.ip || ''}</span>
+                        </div>`;
+                    }).join('') || '<div class="empty-state"><p>No recent activity</p></div>';
+                }
+                
+                // Update hourly stats
+                const hour = Date.now() - 3600000;
+                const hourEvents = data.events.filter(e => e.timestamp > hour);
+                const el1 = document.getElementById('statAuth1h');
+                const el2 = document.getElementById('statLoads1h');
+                if (el1) el1.textContent = hourEvents.filter(e => e.type === 'auth_success' || e.type === 'execute_success').length;
+                if (el2) el2.textContent = hourEvents.filter(e => e.type === 'script_loaded' || e.type === 'execute_success').length;
+            }
+        }
+        
+        // ── Security ──
+        async function blacklistIPAction(operation) {
+            const ip = document.getElementById('blacklistIP').value;
+            if (!ip) { toast('Enter an IP address', 'error'); return; }
+            
+            const res = await fetch(`${API}/api/admin/dashboard`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': adminKey },
+                body: JSON.stringify({
+                    action: 'blacklist',
+                    operation,
+                    ip,
+                    reason: document.getElementById('blacklistReason').value || 'Manual',
+                    adminKey,
+                }),
+            });
+            const data = await res.json();
+            toast(data.message || (data.success ? 'Done' : 'Failed'), data.success ? 'success' : 'error');
+        }
+        
+        // ── Loader Copy ──
+        function copyLoader() {
+            const code = document.getElementById('loaderCode').innerText
+                .replace('Copy', '')
+                .replace(API, window.location.origin);
+            navigator.clipboard.writeText(code);
+            toast('Loader script copied!', 'success');
+        }
+        
+        // Update API URL in loader
+        document.querySelectorAll('.api-url').forEach(el => {
+            el.textContent = window.location.origin;
+        });
+        
+        // ── Toast Notifications ──
+        function toast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const el = document.createElement('div');
+            el.className = `toast toast-${type}`;
+            el.textContent = message;
+            container.appendChild(el);
+            
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateX(100%)';
+                setTimeout(() => el.remove(), 300);
+            }, 4000);
+        }
+        
+        // ── Auto refresh ──
+        setInterval(() => {
+            if (adminKey && document.getElementById('mainDashboard').classList.contains('active')) {
+                refreshDashboard();
+            }
+        }, 30000);
+    </script>
 </body>
 </html>
