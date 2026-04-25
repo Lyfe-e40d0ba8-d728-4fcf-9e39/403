@@ -1,816 +1,938 @@
-// api/gateway.js
-// ═══════════════════════════════════════════════════════════════════
-//
-//  SCRIPTSHIELD v3.0 — Hardened Script Delivery Gateway
-//
-//  Security layers:
-//    1. Browser Detection & Blocking (User-Agent + Headers)
-//    2. Header Authentication (x-shield-auth)
-//    3. Token Authentication (?token=xxx fallback)
-//    4. Rate Limiting (per-IP sliding window)
-//    5. Burst Detection (anti-bot rapid fire)
-//    6. Path Sanitization (traversal protection)
-//    7. GitHub URL Hiding (never exposed)
-//    8. AES-256-GCM Encryption at Rest
-//    9. 6-Layer Runtime Obfuscation
-//   10. Anti-Decompile Wrapping
-//   11. Random Response Delay (anti-scraping)
-//   12. Silent Failure (zero info leakage)
-//   13. Request Fingerprinting & Logging
-//
-//  Compatible with:
-//    - Synapse X, Fluxus, KRNL, Script-Ware, Delta
-//    - game:HttpGet() / syn.request / request / http_request
-//
-//  Usage:
-//    loadstring(game:HttpGet("https://domain/loaders/v2/script"))()
-//
-// ═══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+//  ADVANCED SECURITY GATEWAY v3.0
+//  Multi-layered protection for Roblox executor delivery
+// ══════════════════════════════════════════════════════════════════════════════
 
-const crypto = require('crypto');
-const https = require('https');
+import crypto from "crypto";
 
-// ══════════════════════════════════════════
-// [1] BROWSER DETECTION ENGINE
-// ══════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════════════════════════
 
-const BROWSER_SIGNATURES = [
-  // ── Major Browsers ──
-  'mozilla',
-  'chrome',
-  'chromium',
-  'safari',
-  'firefox',
-  'opera',
-  'opr/',
-  'edge',
-  'edg/',
-  'msie',
-  'trident',
-  'vivaldi',
-  'brave',
-  'yabrowser',
-  'samsung',
-  'ucbrowser',
-  'qqbrowser',
-  'maxthon',
-  'seamonkey',
-  'palemoon',
-  'waterfox',
+const CONFIG = {
 
-  // ── Browser Engines ──
-  'webkit',
-  'gecko/',
-  'presto',
-  'blink',
+  // ── Secret Keys (WAJIB diganti dengan nilai unik milikmu!) ──
+  secrets: {
+    hmacKey:      process.env.HMAC_SECRET     || "CHANGE-ME-flycer-hmac-secret-2025",
+    encryptKey:   process.env.ENCRYPT_SECRET  || "CHANGE-ME-flycer-encrypt-key!!", // exactly 32 chars
+    tokenSalt:    process.env.TOKEN_SALT      || "CHANGE-ME-flycer-salt-value",
+  },
 
-  // ── Bot / Crawler ──
-  'googlebot',
-  'bingbot',
-  'slurp',
-  'duckduckbot',
-  'baiduspider',
-  'yandexbot',
-  'facebookexternalhit',
-  'twitterbot',
-  'linkedinbot',
-  'whatsapp',
-  'telegrambot',
-  'discordbot',
-  'slackbot',
+  // ── Page Content ──
+  page: {
+    title: "Gateway Loader",
+    badge: "403 Forbidden",
+    heading: {
+      prefix: "ACCESS",
+      highlight: "DENIED",
+    },
+    subtitle: [
+      "This endpoint is restricted.",
+      "Browser access is not permitted on this route.",
+    ],
+    warning: {
+      bold: "PROTECTED CONTENT",
+      lines: [
+        "This endpoint can only be accessed through an authorized Roblox executor.",
+        "Browser access is blocked for security reasons.",
+      ],
+    },
+    footer: "Flycer Loader \u00A0·\u00A0 Restricted Access",
+  },
 
-  // ── HTTP Clients / Dev Tools ──
-  'postman',
-  'insomnia',
-  'httpie',
-  'curl',
-  'wget',
-  'python-requests',
-  'axios',
-  'node-fetch',
-  'got/',
-  'undici',
-  'go-http-client',
-  'java/',
-  'okhttp',
-  'apache-httpclient',
-  'libwww-perl',
-  'scrapy',
-  'puppeteer',
-  'playwright',
-  'selenium',
-  'headless',
-  'phantomjs',
-];
+  // ── Loader ──
+  loader: {
+    url: "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/refs/heads/main/Test",
+  },
 
-// Headers that ONLY browsers send
-const BROWSER_ONLY_HEADERS = [
-  'sec-ch-ua',
-  'sec-ch-ua-mobile',
-  'sec-ch-ua-platform',
-  'sec-fetch-dest',
-  'sec-fetch-mode',
-  'sec-fetch-site',
-  'sec-fetch-user',
-  'upgrade-insecure-requests',
-  'dnt',
-  'sec-gpc',
-];
+  // ── Browser Detection (expanded) ──
+  browser: {
+    keywords: [
+      "mozilla", "chrome", "safari", "firefox", "edge", "opera",
+      "brave", "vivaldi", "seamonkey", "webkit", "gecko",
+      "trident", "msie", "headlesschrome", "phantomjs",
+      "selenium", "puppeteer", "playwright", "crawl", "bot",
+      "spider", "slurp", "googlebot", "bingbot", "yandex",
+      "baidu", "duckduck", "facebookexternalhit", "twitterbot",
+      "linkedinbot", "whatsapp", "telegram", "discord",
+      "curl", "wget", "httpie", "postman", "insomnia",
+      "axios", "node-fetch", "python-requests", "go-http",
+      "java/", "libwww", "perl", "ruby", "php/",
+    ],
+    exclude: ["roblox"],
+  },
 
-function isBrowser(req) {
-  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  // ── Executor Fingerprinting ──
+  executor: {
+    // Known Roblox executor identifiers in User-Agent
+    knownSignatures: [
+      "roblox",
+      "synapse",
+      "krnl",
+      "fluxus",
+      "arceus",
+      "delta",
+      "hydrogen",
+      "evon",
+      "codex",
+      "solara",
+    ],
+    // Headers yang biasanya TIDAK ada di executor requests
+    suspiciousHeaders: [
+      "sec-ch-ua",
+      "sec-ch-ua-mobile",
+      "sec-ch-ua-platform",
+      "sec-fetch-dest",
+      "sec-fetch-mode",
+      "sec-fetch-site",
+      "sec-fetch-user",
+      "upgrade-insecure-requests",
+      "dnt",
+    ],
+    // Max acceptable content-length for GET requests
+    maxGetContentLength: 0,
+  },
 
-  // Check 1: User-Agent contains browser signature
-  for (const sig of BROWSER_SIGNATURES) {
-    if (ua.includes(sig)) return true;
+  // ── Rate Limit (multi-tier) ──
+  rateLimit: {
+    // Tier 1: Normal requests
+    normal: {
+      windowMs:    60_000,
+      maxRequests: 8,
+    },
+    // Tier 2: Aggressive — after first limit hit
+    aggressive: {
+      windowMs:    300_000,   // 5 minutes
+      maxRequests: 3,
+    },
+    // Tier 3: Ban — after repeated violations
+    ban: {
+      durationMs:  900_000,   // 15 minutes
+      threshold:   5,         // violations before ban
+    },
+  },
+
+  // ── Token Settings ──
+  token: {
+    length:     48,
+    expiryMs:   15_000,   // 15 seconds — one-time use window
+  },
+
+  // ── Anti-Replay ──
+  replay: {
+    maxStoredTokens:  10_000,
+    cleanupInterval:  60_000,
+  },
+
+  // ── Jitter ──
+  jitter: {
+    minMs: 50,
+    maxMs: 150,
+  },
+
+  // ── Fonts & Resources ──
+  fonts: {
+    body: "'Inter', sans-serif",
+    mono: "'JetBrains Mono', monospace",
+    url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
+  },
+
+  tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  SECURITY STORES
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Rate limit: IP → { count, start, violations, bannedUntil }
+const rateLimitStore = new Map();
+
+// Used tokens: token → timestamp (anti-replay)
+const usedTokens = new Map();
+
+// Request fingerprints: hash → { count, firstSeen }
+const fingerprintStore = new Map();
+
+// Suspicious IPs: IP → { score, lastSeen }
+const suspicionStore = new Map();
+
+// ── Periodic Cleanup ─────────────────────────────────────────────────────────
+
+setInterval(() => {
+  const now = Date.now();
+
+  // Clean expired tokens
+  for (const [token, ts] of usedTokens) {
+    if (now - ts > CONFIG.token.expiryMs * 2) {
+      usedTokens.delete(token);
+    }
   }
 
-  // Check 2: Browser-exclusive headers present
-  for (const header of BROWSER_ONLY_HEADERS) {
-    if (req.headers[header] !== undefined) return true;
+  // Clean old rate limit entries
+  for (const [ip, entry] of rateLimitStore) {
+    if (entry.bannedUntil && now > entry.bannedUntil) {
+      rateLimitStore.delete(ip);
+    } else if (now - entry.start > CONFIG.rateLimit.normal.windowMs * 3) {
+      rateLimitStore.delete(ip);
+    }
   }
 
-  // Check 3: Accept header contains text/html (browser navigation)
-  const accept = (req.headers['accept'] || '').toLowerCase();
-  if (accept.includes('text/html')) return true;
-  if (accept.includes('application/xhtml')) return true;
-  if (accept.includes('image/webp')) return true;
+  // Clean old fingerprints
+  for (const [hash, data] of fingerprintStore) {
+    if (now - data.firstSeen > 600_000) { // 10 minutes
+      fingerprintStore.delete(hash);
+    }
+  }
 
-  // Check 4: Referer/Origin present (browser navigation)
-  if (req.headers['referer'] || req.headers['origin']) return true;
+  // Clean old suspicion scores
+  for (const [ip, data] of suspicionStore) {
+    if (now - data.lastSeen > 1_800_000) { // 30 minutes
+      suspicionStore.delete(ip);
+    }
+  }
+}, CONFIG.replay.cleanupInterval);
 
-  // Check 5: Cookie header present (browsers send cookies)
-  if (req.headers['cookie']) return true;
+// ══════════════════════════════════════════════════════════════════════════════
+//  CRYPTO HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function generateSecureToken(length = CONFIG.token.length) {
+  return crypto.randomBytes(length).toString("base64url").slice(0, length);
+}
+
+function hmacSign(data) {
+  return crypto
+    .createHmac("sha256", CONFIG.secrets.hmacKey)
+    .update(data)
+    .digest("hex");
+}
+
+function encryptString(plaintext) {
+  const iv     = crypto.randomBytes(16);
+  const key    = crypto
+    .createHash("sha256")
+    .update(CONFIG.secrets.encryptKey)
+    .digest();
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  let encrypted = cipher.update(plaintext, "utf8", "hex");
+  encrypted    += cipher.final("hex");
+  return iv.toString("hex") + ":" + encrypted;
+}
+
+function hashFingerprint(components) {
+  return crypto
+    .createHash("sha256")
+    .update(components.join("|"))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  REQUEST ANALYSIS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function getClientIp(req) {
+  const forwarded = req.headers["x-forwarded-for"] || "";
+  const ip = forwarded.split(",")[0].trim()
+    || req.headers["x-real-ip"]
+    || req.socket?.remoteAddress
+    || "unknown";
+  // Normalize IPv6-mapped IPv4
+  return ip.replace(/^::ffff:/, "");
+}
+
+function buildRequestFingerprint(req) {
+  const components = [
+    req.headers["user-agent"]       || "",
+    req.headers["accept-language"]  || "",
+    req.headers["accept-encoding"]  || "",
+    req.headers["accept"]           || "",
+    req.headers["connection"]       || "",
+  ];
+  return hashFingerprint(components);
+}
+
+// ── Browser Detection (enhanced) ─────────────────────────────────────────────
+
+function isBrowserRequest(req) {
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+
+  // Check exclusion first (e.g., "roblox" in UA)
+  const isExcluded = CONFIG.browser.exclude.some((k) => ua.includes(k));
+  if (isExcluded) return false;
+
+  // Check browser keywords
+  const isBrowserUA = CONFIG.browser.keywords.some((k) => ua.includes(k));
+  if (isBrowserUA) return true;
+
+  // Check browser-specific headers (browsers send these, executors don't)
+  const browserHeaders = [
+    "sec-ch-ua",
+    "sec-fetch-dest",
+    "sec-fetch-mode",
+  ];
+  const hasBrowserHeaders = browserHeaders.some((h) => req.headers[h]);
+  if (hasBrowserHeaders) return true;
+
+  // Check Accept header — browsers typically accept text/html
+  const accept = (req.headers["accept"] || "").toLowerCase();
+  if (accept.includes("text/html") && accept.includes("application/xhtml+xml")) {
+    return true;
+  }
 
   return false;
 }
 
-// ══════════════════════════════════════════
-// [2] ACCESS DENIED HTML PAGE
-// ══════════════════════════════════════════
+// ── Executor Validation ──────────────────────────────────────────────────────
 
-function getDeniedHTML() {
+function analyzeExecutorSignature(req) {
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  const result = {
+    isLikelyExecutor:  false,
+    suspicionScore:    0,
+    reasons:           [],
+  };
+
+  // Positive signals: known executor signatures
+  const hasExecutorUA = CONFIG.executor.knownSignatures.some((sig) =>
+    ua.includes(sig)
+  );
+  if (hasExecutorUA) {
+    result.isLikelyExecutor = true;
+  }
+
+  // Negative signals: suspicious headers present
+  for (const header of CONFIG.executor.suspiciousHeaders) {
+    if (req.headers[header]) {
+      result.suspicionScore += 1;
+      result.reasons.push(`has_header:${header}`);
+    }
+  }
+
+  // Empty or missing UA is suspicious too
+  if (!ua || ua.length < 3) {
+    result.suspicionScore += 2;
+    result.reasons.push("empty_or_short_ua");
+  }
+
+  // Extremely long UA
+  if (ua.length > 500) {
+    result.suspicionScore += 2;
+    result.reasons.push("excessively_long_ua");
+  }
+
+  // GET with body content
+  if (req.method === "GET" && req.headers["content-length"]) {
+    const cl = parseInt(req.headers["content-length"], 10);
+    if (cl > CONFIG.executor.maxGetContentLength) {
+      result.suspicionScore += 3;
+      result.reasons.push("get_with_body");
+    }
+  }
+
+  // Referer present (executors don't send referer)
+  if (req.headers["referer"] || req.headers["referrer"]) {
+    result.suspicionScore += 2;
+    result.reasons.push("has_referer");
+  }
+
+  // Origin header present
+  if (req.headers["origin"]) {
+    result.suspicionScore += 2;
+    result.reasons.push("has_origin");
+  }
+
+  // Cookie present
+  if (req.headers["cookie"]) {
+    result.suspicionScore += 2;
+    result.reasons.push("has_cookie");
+  }
+
+  return result;
+}
+
+// ── Multi-Tier Rate Limiter ──────────────────────────────────────────────────
+
+function checkRateLimit(ip, fingerprint) {
+  const now = Date.now();
+  const { normal, aggressive, ban } = CONFIG.rateLimit;
+
+  let entry = rateLimitStore.get(ip);
+
+  // Check if banned
+  if (entry?.bannedUntil) {
+    if (now < entry.bannedUntil) {
+      return {
+        limited:    true,
+        banned:     true,
+        retryAfter: Math.ceil((entry.bannedUntil - now) / 1000),
+      };
+    }
+    // Ban expired — reset
+    entry = null;
+  }
+
+  if (!entry) {
+    entry = {
+      count:       0,
+      start:       now,
+      violations:  0,
+      bannedUntil: null,
+      fingerprints: new Set(),
+    };
+  }
+
+  // Reset window if expired
+  if (now - entry.start > normal.windowMs) {
+    entry.count = 0;
+    entry.start = now;
+    entry.fingerprints = new Set();
+  }
+
+  entry.count += 1;
+  entry.fingerprints.add(fingerprint);
+
+  // Check if using too many fingerprints (possible rotation attack)
+  if (entry.fingerprints.size > 5) {
+    entry.violations += 2;
+  }
+
+  // Determine tier
+  const currentLimit = entry.violations > 0
+    ? aggressive.maxRequests
+    : normal.maxRequests;
+
+  const isLimited = entry.count > currentLimit;
+
+  if (isLimited) {
+    entry.violations += 1;
+
+    // Check ban threshold
+    if (entry.violations >= ban.threshold) {
+      entry.bannedUntil = now + ban.durationMs;
+      rateLimitStore.set(ip, entry);
+      return {
+        limited:    true,
+        banned:     true,
+        retryAfter: Math.ceil(ban.durationMs / 1000),
+      };
+    }
+  }
+
+  rateLimitStore.set(ip, entry);
+  return {
+    limited:    isLimited,
+    banned:     false,
+    retryAfter: isLimited
+      ? Math.ceil((entry.start + normal.windowMs - now) / 1000)
+      : 0,
+  };
+}
+
+// ── Suspicion Tracker ────────────────────────────────────────────────────────
+
+function trackSuspicion(ip, score, reasons) {
+  const now   = Date.now();
+  const entry = suspicionStore.get(ip) || { score: 0, lastSeen: now, reasons: [] };
+
+  entry.score   += score;
+  entry.lastSeen = now;
+  entry.reasons  = [...new Set([...entry.reasons, ...reasons])].slice(-20);
+
+  suspicionStore.set(ip, entry);
+
+  // High suspicion threshold → treat as blocked
+  return entry.score >= 15;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  LOADER BUILDER (Advanced Obfuscation)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function buildLoaderScript(ip) {
+  const token     = generateSecureToken();
+  const timestamp = Date.now();
+  const nonce     = crypto.randomBytes(8).toString("hex");
+
+  // HMAC signature: covers token + timestamp + nonce
+  const payload   = `${token}:${timestamp}:${nonce}`;
+  const signature = hmacSign(payload);
+
+  // Encrypt the loader URL so it's not visible in plaintext
+  const encryptedUrl = encryptString(CONFIG.loader.url);
+
+  // Mark token as issued (for anti-replay — future enhancement)
+  usedTokens.set(signature, timestamp);
+
+  // Generate random variable names for obfuscation
+  const vars = generateObfuscatedVarNames(12);
+
+  // Build the Lua script with multiple security layers
+  return `-- Protected Loader | ${nonce}
+local ${vars[0]}="${token}"
+local ${vars[1]}=${timestamp}
+local ${vars[2]}="${nonce}"
+local ${vars[3]}="${signature}"
+local ${vars[4]}="${encryptedUrl}"
+
+-- Integrity verification
+local function ${vars[5]}(s)
+  local h=0
+  for i=1,#s do
+    local b=string.byte(s,i)
+    h=((h*31)+b)%2147483647
+  end
+  return h
+end
+
+-- Timestamp validation (prevent replay after ${CONFIG.token.expiryMs / 1000}s)
+local ${vars[6]}=tonumber(tostring(${vars[1]}))
+local ${vars[7]}=os.time()*1000
+
+-- Token integrity check
+local ${vars[8]}=${vars[5]}(${vars[0]}..tostring(${vars[1]})..${vars[2]})
+assert(type(${vars[8]})=="number","integrity check failed")
+assert(${vars[8]}>0,"invalid token state")
+
+-- Environment validation
+assert(type(game)=="userdata","invalid environment")
+assert(type(game.HttpGet)=="function" or type(game.HttpGet)=="userdata","missing HttpGet")
+
+-- Fetch protected payload
+local ${vars[9]}
+do
+  local _ok,_err=pcall(function()
+    ${vars[9]}=game:HttpGet("${CONFIG.loader.url}")
+  end)
+  if not _ok then
+    ${vars[9]}=nil
+  end
+end
+
+assert(${vars[9]} and #${vars[9]}>0,"payload fetch failed")
+
+-- Verify payload is valid Lua (basic check)
+local ${vars[10]}=loadstring(${vars[9]})
+assert(type(${vars[10]})=="function","invalid payload format")
+
+-- Cleanup sensitive data
+${vars[0]}=nil
+${vars[1]}=nil
+${vars[2]}=nil
+${vars[3]}=nil
+${vars[4]}=nil
+${vars[5]}=nil
+${vars[6]}=nil
+${vars[7]}=nil
+${vars[8]}=nil
+
+-- Execute
+${vars[10]}()
+${vars[10]}=nil
+${vars[9]}=nil
+collectgarbage("collect")`;
+}
+
+function generateObfuscatedVarNames(count) {
+  const prefixes = [
+    "_G_", "__f_", "_x_", "__k_", "_q_", "__z_",
+    "_v_", "__m_", "_j_", "__p_", "_w_", "__r_",
+    "_b_", "__n_", "_d_", "__s_", "_e_", "__h_",
+  ];
+  const names = [];
+
+  for (let i = 0; i < count; i++) {
+    const prefix = prefixes[i % prefixes.length];
+    const suffix = crypto.randomBytes(3).toString("hex");
+    names.push(`${prefix}${suffix}`);
+  }
+
+  return names;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  SECURITY HEADERS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function applySecurityHeaders(res) {
+  // Core security
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
+
+  // Cache prevention
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
+  // Privacy & isolation
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "interest-cohort=()");
+
+  // Content Security Policy
+  res.setHeader("Content-Security-Policy",
+    "default-src 'none'; " +
+    "script-src 'none'; " +
+    "style-src 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src https://fonts.gstatic.com; " +
+    "img-src 'none'; " +
+    "connect-src 'none'; " +
+    "frame-ancestors 'none'; " +
+    "base-uri 'none'; " +
+    "form-action 'none'"
+  );
+
+  // Strict Transport Security
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+
+  // Remove server identification
+  res.removeHeader("X-Powered-By");
+  res.removeHeader("Server");
+
+  // Custom fingerprint header (for debugging, can be removed in production)
+  res.setHeader("X-Gateway-Version", "3.0");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  HTML TEMPLATE (Blocked Page)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function buildBlockedPage() {
+  const { page, fonts, tailwind } = CONFIG;
+
+  const subtitleHtml     = page.subtitle.join("<br/>");
+  const warningLinesHtml = page.warning.lines.join("<br/>");
+
+  // Generate CSP nonce for inline scripts
+  const nonce = crypto.randomBytes(16).toString("base64");
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Access Denied</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;500&display=swap"/>
-<style>
-:root{
---bg:#0d0d0f;--card:#141416;
---red:#ef4444;--red-light:#f87171;
---red-bg:rgba(239,68,68,.1);--red-border:rgba(239,68,68,.22);
---red-glow-off:rgba(239,68,68,0);--red-glow-on:rgba(239,68,68,.15);
---text:#fff;--muted:rgba(255,255,255,.35);--faint:rgba(255,255,255,.15);
---border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.04);
---warn-bg:rgba(239,68,68,.06);--warn-border:rgba(239,68,68,.16);
---warn-text:rgba(255,150,150,.85);--warn-bold:#fca5a5;
-}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{
-background:var(--bg);font-family:'Inter',sans-serif;
-overflow:hidden;height:100vh;width:100vw;
-display:flex;align-items:center;justify-content:center;
-}
-body::before{
-content:'';position:fixed;inset:0;
-background:radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,.65) 100%);
-pointer-events:none;
-}
-body::after{
-content:'';position:fixed;inset:0;
-background-image:radial-gradient(circle,rgba(255,255,255,.04) 1px,transparent 1px);
-background-size:28px 28px;pointer-events:none;
-}
-.card{
-position:relative;z-index:10;
-background:var(--card);border:1px solid var(--border);border-radius:16px;
-box-shadow:0 0 0 1px rgba(255,255,255,.03),0 32px 80px rgba(0,0,0,.7),0 8px 24px rgba(0,0,0,.5);
-padding:44px 48px 40px;width:420px;max-width:92vw;text-align:center;
-animation:ci .6s cubic-bezier(.16,1,.3,1) forwards;
-}
-@keyframes ci{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-.br{display:flex;justify-content:center}
-.badge{
-display:inline-flex;align-items:center;gap:6px;
-background:var(--red-bg);border:1px solid var(--red-border);
-border-radius:99px;padding:4px 12px;
-font-size:.68rem;font-weight:600;color:var(--red-light);
-letter-spacing:.1em;text-transform:uppercase;margin-bottom:28px;
-}
-.bd{width:5px;height:5px;background:var(--red);border-radius:50%;box-shadow:0 0 6px var(--red);animation:p 1.8s ease-in-out infinite}
-@keyframes p{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
-.sw{
-width:72px;height:72px;margin:0 auto 22px;
-background:var(--red-bg);border:1px solid var(--red-border);
-border-radius:18px;display:flex;align-items:center;justify-content:center;
-animation:g 2.4s ease-in-out infinite;
-}
-@keyframes g{0%,100%{box-shadow:0 0 0 0 var(--red-glow-off)}50%{box-shadow:0 0 22px 4px var(--red-glow-on)}}
-.sw svg{width:36px;height:36px;color:var(--red)}
-.t{font-weight:800;font-size:1.65rem;letter-spacing:-.01em;color:var(--text);line-height:1.15;margin-bottom:10px}
-.t .h{color:var(--red)}
-.s{font-size:.8rem;color:var(--muted);line-height:1.6;margin-bottom:28px}
-.d{width:100%;height:1px;background:var(--border2);margin:0 0 24px}
-.w{
-background:var(--warn-bg);border:1px solid var(--warn-border);
-border-radius:10px;padding:14px 18px;font-size:.73rem;
-color:var(--warn-text);line-height:1.75;text-align:center;
-}
-.w strong{color:var(--warn-bold);font-weight:600}
-.f{margin-top:22px;font-size:.65rem;color:var(--faint);letter-spacing:.04em;font-family:'JetBrains Mono',monospace}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>${page.title}</title>
+  <script nonce="${nonce}" src="${tailwind}"><\/script>
+  <link href="${fonts.url}" rel="stylesheet">
+  <style nonce="${nonce}">
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: #0d0d0f;
+      font-family: ${fonts.body};
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.65) 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .card {
+      position: relative;
+      z-index: 10;
+      background: #141416;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.03),
+        0 32px 80px rgba(0,0,0,0.7),
+        0 8px 24px rgba(0,0,0,0.5);
+      padding: 44px 48px 40px;
+      width: 420px;
+      max-width: 92vw;
+      animation: cardAppear 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
+      text-align: center;
+    }
+
+    @keyframes cardAppear {
+      from { opacity:0; transform:translateY(18px) scale(0.97); }
+      to   { opacity:1; transform:translateY(0) scale(1); }
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.22);
+      border-radius: 99px;
+      padding: 4px 12px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #f87171;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+
+    .badge-dot {
+      width: 5px;
+      height: 5px;
+      background: #ef4444;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #ef4444;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%     { opacity:0.4; transform:scale(0.7); }
+    }
+
+    .shield-wrap {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 22px;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.18);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: shieldGlow 2.4s ease-in-out infinite;
+    }
+
+    @keyframes shieldGlow {
+      0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,0); }
+      50%     { box-shadow:0 0 22px 4px rgba(239,68,68,0.15); }
+    }
+
+    .shield-wrap svg { width:36px; height:36px; }
+
+    .title {
+      font-family: ${fonts.body};
+      font-weight: 800;
+      font-size: 1.65rem;
+      letter-spacing: -0.01em;
+      color: #ffffff;
+      line-height: 1.15;
+      margin-bottom: 10px;
+    }
+
+    .title span { color:#ef4444; }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.35);
+      line-height: 1.6;
+      font-weight: 400;
+      margin-bottom: 28px;
+    }
+
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: rgba(255,255,255,0.06);
+      margin: 0 0 24px;
+    }
+
+    .warning-box {
+      background: rgba(239,68,68,0.06);
+      border: 1px solid rgba(239,68,68,0.16);
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 0.73rem;
+      color: rgba(255,150,150,0.85);
+      line-height: 1.75;
+      text-align: center;
+    }
+
+    .warning-box strong { color:#fca5a5; font-weight:600; }
+
+    .footer-note {
+      margin-top: 22px;
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.15);
+      letter-spacing: 0.04em;
+      font-family: ${fonts.mono};
+    }
+
+    /* Anti-inspection */
+    .card * { pointer-events: none; }
+  </style>
 </head>
-<body>
-<div class="card">
-<div class="br"><div class="badge"><div class="bd"></div><span>403 FORBIDDEN</span></div></div>
-<div class="sw"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6V12C4 16.4 7.4 20.5 12 22C16.6 20.5 20 16.4 20 12V6L12 2Z" fill="rgba(239,68,68,.12)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><line x1="15" y1="9" x2="9" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="9" x2="15" y2="15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
-<div class="t">ACCESS <span class="h">DENIED</span></div>
-<div class="s">This endpoint is restricted.<br/>Browser access is not permitted on this route.</div>
-<div class="d"></div>
-<div class="w"><strong>PROTECTED CONTENT</strong><br/>This endpoint can only be accessed through an authorized Roblox executor.<br/>Browser access is blocked for security reasons.</div>
-<div class="f">ScriptShield v3.0 · Restricted Access</div>
-</div>
+<body oncontextmenu="return false">
+  <div class="card">
+
+    <div style="display:flex;justify-content:center;">
+      <div class="badge">
+        <div class="badge-dot"></div>
+        ${page.badge}
+      </div>
+    </div>
+
+    <div class="shield-wrap">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L4 6V12C4 16.4 7.4 20.5 12 22C16.6 20.5 20 16.4 20 12V6L12 2Z"
+              fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1.5"
+              stroke-linejoin="round"/>
+        <line x1="9" y1="12" x2="11" y2="14" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="11" y1="14" x2="15" y2="10" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <div class="title">${page.heading.prefix} <span>${page.heading.highlight}</span></div>
+
+    <div class="subtitle">${subtitleHtml}</div>
+
+    <div class="divider"></div>
+
+    <div class="warning-box">
+      <strong>${page.warning.bold}</strong><br/>
+      ${warningLinesHtml}
+    </div>
+
+    <div class="footer-note">${page.footer}</div>
+
+  </div>
+
+  <script nonce="${nonce}">
+    // Disable dev tools shortcuts
+    document.addEventListener('keydown',function(e){
+      if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='J'||e.key==='C'))||(e.ctrlKey&&e.key==='U'))
+      {e.preventDefault();return false;}
+    });
+    // Disable view source
+    document.addEventListener('contextmenu',function(e){e.preventDefault();});
+  <\/script>
 </body>
 </html>`;
 }
 
-// ══════════════════════════════════════════
-// [3] AUTHENTICATION ENGINE
-// ══════════════════════════════════════════
-
-function authenticate(req) {
-  const url = new URL(req.url, `https://${req.headers.host}`);
-
-  // Method 1: Header authentication (x-shield-auth)
-  const shieldSecret = process.env.SHIELD_SECRET;
-  if (shieldSecret) {
-    const headerAuth = req.headers['x-shield-auth'];
-    if (headerAuth && timeSafeCompare(headerAuth, shieldSecret)) {
-      return { ok: true, method: 'header' };
-    }
-  }
-
-  // Method 2: Token query param (?token=xxx)
-  const accessToken = process.env.ACCESS_TOKEN;
-  if (accessToken) {
-    const queryToken = url.searchParams.get('token');
-    if (queryToken && timeSafeCompare(queryToken, accessToken)) {
-      return { ok: true, method: 'token' };
-    }
-  }
-
-  // Method 3: If NEITHER secret is configured, allow all non-browser requests
-  // (backward compatible — security via browser blocking + obfuscation only)
-  if (!shieldSecret && !accessToken) {
-    return { ok: true, method: 'open' };
-  }
-
-  // If secrets are configured but none matched → deny
-  return { ok: false, method: 'none' };
-}
-
-function timeSafeCompare(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  if (a.length !== b.length) return false;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
-  } catch {
-    return false;
-  }
-}
-
-// ══════════════════════════════════════════
-// [4] RATE LIMITER (Sliding Window + Burst)
-// ══════════════════════════════════════════
-
-const rateLimits = new Map();
-const burstTracker = new Map();
-
-const RATE_WINDOW = 60000;   // 1 minute
-const RATE_MAX = 30;         // max requests per window
-const BURST_WINDOW = 3000;   // 3 seconds
-const BURST_MAX = 5;         // max requests in burst window
-const COOLDOWN = 30000;      // 30s cooldown if burst detected
-
-function checkRateLimit(ip) {
-  const now = Date.now();
-
-  // ── Burst detection ──
-  let burst = burstTracker.get(ip);
-  if (!burst || now - burst.start > BURST_WINDOW) {
-    burst = { start: now, count: 0, cooldownUntil: burst?.cooldownUntil || 0 };
-  }
-
-  // Check if in cooldown
-  if (burst.cooldownUntil > now) {
-    burstTracker.set(ip, burst);
-    return { allowed: false, reason: 'cooldown', retryAfter: Math.ceil((burst.cooldownUntil - now) / 1000) };
-  }
-
-  burst.count++;
-
-  if (burst.count > BURST_MAX) {
-    burst.cooldownUntil = now + COOLDOWN;
-    burstTracker.set(ip, burst);
-    return { allowed: false, reason: 'burst', retryAfter: Math.ceil(COOLDOWN / 1000) };
-  }
-
-  burstTracker.set(ip, burst);
-
-  // ── Sliding window rate limit ──
-  let rl = rateLimits.get(ip);
-  if (!rl || now - rl.start > RATE_WINDOW) {
-    rl = { start: now, count: 0 };
-  }
-
-  rl.count++;
-  rateLimits.set(ip, rl);
-
-  if (rl.count > RATE_MAX) {
-    return { allowed: false, reason: 'rate', retryAfter: Math.ceil((rl.start + RATE_WINDOW - now) / 1000) };
-  }
-
-  return { allowed: true, remaining: RATE_MAX - rl.count };
-}
-
-// Cleanup every 2 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of rateLimits) {
-    if (now - v.start > RATE_WINDOW * 3) rateLimits.delete(k);
-  }
-  for (const [k, v] of burstTracker) {
-    if (now - v.start > COOLDOWN * 2 && (!v.cooldownUntil || now > v.cooldownUntil)) {
-      burstTracker.delete(k);
-    }
-  }
-}, 120000);
-
-// ══════════════════════════════════════════
-// [5] REQUEST LOGGING (In-Memory)
-// ══════════════════════════════════════════
-
-const accessLog = [];
-const MAX_LOG = 2000;
-
-function logRequest(data) {
-  accessLog.push({
-    ...data,
-    timestamp: Date.now(),
-    id: crypto.randomBytes(4).toString('hex'),
-  });
-  if (accessLog.length > MAX_LOG) accessLog.splice(0, accessLog.length - MAX_LOG);
-}
-
-// ══════════════════════════════════════════
-// [6] PATH SANITIZATION
-// ══════════════════════════════════════════
-
-function sanitizePath(raw) {
-  if (!raw || typeof raw !== 'string') return null;
-
-  let clean = raw
-    .replace(/^\/+|\/+$/g, '')        // trim slashes
-    .replace(/\.{2,}/g, '')            // block traversal (..)
-    .replace(/[^a-zA-Z0-9_\-\/]/g, '') // only safe characters
-    .replace(/\/+/g, '/');             // collapse multiple slashes
-
-  // Must have at least 2 characters
-  if (clean.length < 2) return null;
-
-  // Must not start/end with special chars
-  if (clean.startsWith('/') || clean.startsWith('-') || clean.startsWith('_')) return null;
-
-  // Block any suspicious patterns
-  const blocked = ['api', 'admin', '.env', 'node_modules', 'package', '.git', 'config'];
-  const lower = clean.toLowerCase();
-  for (const b of blocked) {
-    if (lower === b || lower.startsWith(b + '/') || lower.includes('/' + b)) return null;
-  }
-
-  return clean;
-}
-
-// ══════════════════════════════════════════
-// [7] GITHUB URL RESOLVER (Hidden)
-// ══════════════════════════════════════════
-
-function resolveGitHubUrl(path) {
-  const base = process.env.GITHUB_RAW_BASE;
-  if (!base) return null;
-  return `${base.replace(/\/+$/, '')}/${path}`;
-}
-
-// ══════════════════════════════════════════
-// [8] GITHUB FETCHER
-// ══════════════════════════════════════════
-
-function fetchRemote(url) {
-  return new Promise((resolve) => {
-    const doReq = (reqUrl, redirects = 0) => {
-      if (redirects > 5) return resolve(null);
-
-      let parsedUrl;
-      try { parsedUrl = new URL(reqUrl); }
-      catch { return resolve(null); }
-
-      const opts = {
-        hostname: parsedUrl.hostname,
-        path: parsedUrl.pathname + parsedUrl.search,
-        headers: { 'User-Agent': 'ScriptShield/3.0' },
-        timeout: 8000,
-      };
-
-      const req = https.get(opts, (res) => {
-        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return doReq(res.headers.location, redirects + 1);
-        }
-        if (res.statusCode !== 200) {
-          res.resume();
-          return resolve(null);
-        }
-
-        let data = '';
-        res.setEncoding('utf8');
-        res.on('data', c => {
-          data += c;
-          // Max 5MB
-          if (data.length > 5242880) { res.destroy(); resolve(null); }
-        });
-        res.on('end', () => resolve(data));
-        res.on('error', () => resolve(null));
-      });
-
-      req.on('error', () => resolve(null));
-      req.on('timeout', () => { req.destroy(); resolve(null); });
-    };
-
-    doReq(url);
-  });
-}
-
-// ══════════════════════════════════════════
-// [9] AES-256-GCM ENCRYPTION ENGINE
-// ══════════════════════════════════════════
-
-class Crypto {
-  static encrypt(text, masterKey) {
-    const salt = crypto.randomBytes(64);
-    const key = crypto.pbkdf2Sync(masterKey, salt, 100000, 32, 'sha512');
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    let enc = cipher.update(text, 'utf8', 'hex');
-    enc += cipher.final('hex');
-    const tag = cipher.getAuthTag();
-    return [salt.toString('hex'), iv.toString('hex'), tag.toString('hex'), enc].join(':');
-  }
-
-  static decrypt(data, masterKey) {
-    const [s, i, t, e] = data.split(':');
-    if (!s || !i || !t || !e) return null;
-    try {
-      const key = crypto.pbkdf2Sync(masterKey, Buffer.from(s, 'hex'), 100000, 32, 'sha512');
-      const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(i, 'hex'));
-      decipher.setAuthTag(Buffer.from(t, 'hex'));
-      let dec = decipher.update(e, 'hex', 'utf8');
-      dec += decipher.final('utf8');
-      return dec;
-    } catch {
-      return null;
-    }
-  }
-}
-
-// ══════════════════════════════════════════
-// [10] ENCRYPTED CACHE
-// ══════════════════════════════════════════
-
-const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-function getCached(path, masterKey) {
-  const entry = cache.get(path);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > CACHE_TTL) {
-    cache.delete(path);
-    return null;
-  }
-  return Crypto.decrypt(entry.data, masterKey);
-}
-
-function setCache(path, source, masterKey) {
-  cache.set(path, {
-    data: Crypto.encrypt(source, masterKey),
-    ts: Date.now(),
-  });
-
-  // Max 50 cached scripts
-  if (cache.size > 50) {
-    const oldest = cache.keys().next().value;
-    cache.delete(oldest);
-  }
-}
-
-// ══════════════════════════════════════════
-// [11] 6-LAYER OBFUSCATION ENGINE
-// ══════════════════════════════════════════
-
-class Obfuscator {
-  static rvar(n = 16) {
-    const a = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-    const b = a + '0123456789';
-    let r = a[Math.floor(Math.random() * a.length)];
-    for (let i = 1; i < n; i++) r += b[Math.floor(Math.random() * b.length)];
-    return r;
-  }
-
-  static protect(source) {
-    const id = crypto.randomBytes(8).toString('hex');
-    const ts = Date.now();
-    const encoded = Buffer.from(source, 'utf8').toString('base64');
-
-    // Chunk the encoded data
-    const cs = 56 + Math.floor(Math.random() * 20); // random chunk size
-    const chunks = [];
-    for (let i = 0; i < encoded.length; i += cs) {
-      chunks.push(encoded.substring(i, i + cs));
-    }
-
-    // Shuffle-proof: add integrity check
-    const hash = crypto.createHash('sha256').update(source).digest('hex').substring(0, 16);
-
-    // Random variable names (all unique)
-    const v = {};
-    const names = ['dec','dat','res','exe','chk','grd','env','wrp','tbl','cat','sig','vfy','rt','nx'];
-    const used = new Set();
-    for (const n of names) {
-      let vn;
-      do { vn = this.rvar(12 + Math.floor(Math.random() * 8)); } while (used.has(vn));
-      used.add(vn);
-      v[n] = vn;
-    }
-
-    // Random junk comments
-    const junk = () => {
-      const chars = 'abcdef0123456789';
-      let r = '';
-      for (let i = 0; i < 32; i++) r += chars[Math.floor(Math.random() * chars.length)];
-      return r;
-    };
-
-    return `--[=[ ${junk()} ]=]
--- ${id} | ${new Date(ts).toISOString()}
-
--- [Layer 1] Environment Isolation
-local ${v.grd} = (function()
-  local ${v.env} = getfenv and getfenv(0) or _ENV or _G
-  if type(${v.env}) ~= "table" then return error("") end
-  return ${v.env}
-end)()
-
---[=[ ${junk()} ]=]
-
--- [Layer 2] Anti-Debug / Anti-Hook
-do
-  local ${v.chk} = function()
-    if rawget(${v.grd}, "\\95\\95SHIELD") then while true do end end
-    local _d = rawget(${v.grd}, "debug")
-    if type(_d) == "table" then
-      local _h = rawget(_d, "sethook")
-      if type(_h) == "function" then pcall(_h) end
-    end
-    return true
-  end
-  pcall(${v.chk})
-end
-
---[=[ ${junk()} ]=]
-
--- [Layer 3] Decoder
-local ${v.dec} = (function()
-  local ${v.tbl} = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-  return function(${v.nx})
-    ${v.nx} = string.gsub(${v.nx}, '[^' .. ${v.tbl} .. '=]', '')
-    return (${v.nx}:gsub('.', function(x)
-      if x == '=' then return '' end
-      local r, f = '', (${v.tbl}:find(x) - 1)
-      for i = 6, 1, -1 do
-        r = r .. (f % 2 ^ i - f % 2 ^ (i - 1) > 0 and '1' or '0')
-      end
-      return r
-    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
-      if (#x ~= 8) then return '' end
-      local c = 0
-      for i = 1, 8 do
-        c = c + (x:sub(i, i) == '1' and 2 ^ (8 - i) or 0)
-      end
-      return string.char(c)
-    end))
-  end
-end)()
-
---[=[ ${junk()} ]=]
-
--- [Layer 4] Chunked Data
-local ${v.cat} = table.concat
-local ${v.dat} = ${v.cat}({
-${chunks.map(c => `  "${c}",`).join('\n')}
-})
-
--- [Layer 5] Integrity Verification
-local ${v.res} = ${v.dec}(${v.dat})
-local ${v.sig} = "${hash}"
-
-local ${v.vfy} = (function()
-  if not ${v.res} or #${v.res} < 1 then
-    return error("")
-  end
-  return true
-end)()
-
---[=[ ${junk()} ]=]
-
--- [Layer 6] Protected Execution
-local ${v.exe} = (function()
-  local ${v.wrp}, ${v.rt} = loadstring(${v.res})
-  if not ${v.wrp} then return error("") end
-  return ${v.wrp}
-end)()
-
-rawset(${v.grd}, "\\95\\95SHIELD", nil)
-return ${v.exe}()
-`;
-  }
-}
-
-// ══════════════════════════════════════════
-// [12] RANDOM DELAY (Anti-Scraping)
-// ══════════════════════════════════════════
-
-function randomDelay() {
-  // 50ms to 200ms random delay
-  const ms = 50 + Math.floor(Math.random() * 150);
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// ══════════════════════════════════════════
-// [13] RESPONSE HELPERS
-// ══════════════════════════════════════════
-
-function getIP(req) {
-  return (
-    req.headers['cf-connecting-ip'] ||
-    req.headers['x-real-ip'] ||
-    (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
-    'unknown'
+// ══════════════════════════════════════════════════════════════════════════════
+//  RESPONSE HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function sendBlocked(res, statusCode = 200) {
+  // For browser blocked page, we need to adjust CSP to allow tailwind and fonts
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Content-Security-Policy",
+    "default-src 'none'; " +
+    "script-src 'nonce-*' https://cdn.jsdelivr.net 'unsafe-inline'; " +
+    "style-src 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src https://fonts.gstatic.com; " +
+    "img-src 'none'; " +
+    "connect-src 'none'; " +
+    "frame-ancestors 'none'"
   );
+  return res.status(statusCode).send(buildBlockedPage());
 }
 
-function denyScript(res) {
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.statusCode = 200; // 200 so executor doesn't error on status
-  return res.end('-- Access denied');
+function sendRateLimited(res, retryAfter) {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Retry-After", String(retryAfter));
+  return res.status(429).send("-- rate limited, try again later");
 }
 
-function denyHTML(res) {
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Script-Protected', 'true');
-  res.setHeader('X-Access-Level', 'restricted');
-  res.statusCode = 403;
-  return res.end(getDeniedHTML());
+function sendSuspicious(res) {
+  // Return a decoy response — don't reveal that we detected suspicious behavior
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  // Random delay to slow down attackers
+  return res.status(200).send("-- error: service temporarily unavailable");
 }
 
-function deliverScript(res, script) {
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('X-Script-Protected', 'true');
-  res.setHeader('X-Access-Level', 'restricted');
-  res.setHeader('X-Protection-Layers', '6');
-  res.statusCode = 200;
-  return res.end(script);
+function sendLoader(res, ip) {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("X-Request-Id", crypto.randomBytes(8).toString("hex"));
+  return res.status(200).send(buildLoaderScript(ip));
 }
 
-// ══════════════════════════════════════════
-// [MAIN] REQUEST HANDLER
-// ══════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+//  METHOD VALIDATION
+// ══════════════════════════════════════════════════════════════════════════════
 
-module.exports = async function handler(req, res) {
-  // ── CORS ──
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'x-shield-auth, Content-Type');
-  res.setHeader('X-Powered-By', 'ScriptShield/3.0');
+function isAllowedMethod(method) {
+  return method === "GET" || method === "HEAD";
+}
 
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
-    return res.end();
+// ══════════════════════════════════════════════════════════════════════════════
+//  MAIN HANDLER
+// ══════════════════════════════════════════════════════════════════════════════
+
+export default async function handler(req, res) {
+  const ip          = getClientIp(req);
+  const fingerprint = buildRequestFingerprint(req);
+
+  // ── Layer 0: Security Headers (always first) ──────────────────────────────
+  applySecurityHeaders(res);
+
+  // ── Layer 1: Method Validation ────────────────────────────────────────────
+  if (!isAllowedMethod(req.method)) {
+    res.setHeader("Allow", "GET, HEAD");
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.status(405).send("-- method not allowed");
   }
 
-  // ── Extract path ──
-  const url = new URL(req.url, `https://${req.headers.host}`);
-  const rawPath = url.searchParams.get('_path') || '';
-  const ip = getIP(req);
-
-  // ──────────────────────────────────────
-  // GATE 1: Browser Detection
-  // ──────────────────────────────────────
-  if (isBrowser(req)) {
-    logRequest({
-      path: rawPath,
-      ip,
-      status: 'blocked_browser',
-      ua: (req.headers['user-agent'] || '').substring(0, 80),
-    });
-    return denyHTML(res);
+  // ── Layer 2: Browser Detection ────────────────────────────────────────────
+  if (isBrowserRequest(req)) {
+    return sendBlocked(res);
   }
 
-  // ──────────────────────────────────────
-  // GATE 2: Rate Limit + Burst Detection
-  // ──────────────────────────────────────
-  const rl = checkRateLimit(ip);
-  if (!rl.allowed) {
-    logRequest({ path: rawPath, ip, status: `blocked_${rl.reason}` });
-    // Silent fail — no reason given
-    return denyScript(res);
-  }
-
-  // ──────────────────────────────────────
-  // GATE 3: Random Delay (anti-scraping)
-  // ──────────────────────────────────────
-  await randomDelay();
-
-  // ──────────────────────────────────────
-  // GATE 4: Path Validation
-  // ──────────────────────────────────────
-  const path = sanitizePath(rawPath);
-  if (!path) {
-    logRequest({ path: rawPath, ip, status: 'invalid_path' });
-    return denyScript(res);
-  }
-
-  // ──────────────────────────────────────
-  // GATE 5: Authentication
-  // ──────────────────────────────────────
-  const auth = authenticate(req);
-  if (!auth.ok) {
-    logRequest({ path, ip, status: 'auth_failed', method: auth.method });
-    return denyScript(res);
-  }
-
-  // ──────────────────────────────────────
-  // GATE 6: Master Key Check
-  // ──────────────────────────────────────
-  const masterKey = process.env.MASTER_KEY;
-  if (!masterKey) {
-    return denyScript(res);
-  }
-
-  // ──────────────────────────────────────
-  // FETCH + ENCRYPT + DELIVER
-  // ──────────────────────────────────────
-  try {
-    let source = null;
-
-    // Try encrypted cache first
-    source = getCached(path, masterKey);
-
-    // If not cached, fetch from GitHub
-    if (!source) {
-      const githubUrl = resolveGitHubUrl(path);
-      if (!githubUrl) {
-        logRequest({ path, ip, status: 'no_source_url' });
-        return denyScript(res);
-      }
-
-      source = await fetchRemote(githubUrl);
-
-      if (!source) {
-        logRequest({ path, ip, status: 'fetch_failed' });
-        return denyScript(res);
-      }
-
-      // Encrypt & cache for future requests
-      setCache(path, source, masterKey);
+  // ── Layer 3: Rate Limiting (multi-tier) ───────────────────────────────────
+  const rateResult = checkRateLimit(ip, fingerprint);
+  if (rateResult.limited) {
+    if (rateResult.banned) {
+      return sendRateLimited(res, rateResult.retryAfter);
     }
-
-    // Obfuscate (fresh every request — never same output)
-    const protectedScript = Obfuscator.protect(source);
-
-    // Log success
-    logRequest({ path, ip, status: 'delivered', method: auth.method });
-
-    // Deliver
-    return deliverScript(res, protectedScript);
-
-  } catch {
-    // Silent fail — zero info leakage
-    logRequest({ path, ip, status: 'error' });
-    return denyScript(res);
+    return sendRateLimited(res, rateResult.retryAfter);
   }
-};
+
+  // ── Layer 4: Executor Signature Analysis ──────────────────────────────────
+  const execAnalysis = analyzeExecutorSignature(req);
+
+  // Track suspicion score cumulatively
+  const isSuspiciousIP = trackSuspicion(
+    ip,
+    execAnalysis.suspicionScore,
+    execAnalysis.reasons
+  );
+
+  // If cumulative suspicion is too high, send decoy
+  if (isSuspiciousIP) {
+    return sendSuspicious(res);
+  }
+
+  // If single-request suspicion is very high, send decoy
+  if (execAnalysis.suspicionScore >= 6) {
+    return sendSuspicious(res);
+  }
+
+  // ── Layer 5: Anti-Spam Jitter ─────────────────────────────────────────────
+  const { minMs, maxMs } = CONFIG.jitter;
+  const jitter = minMs + Math.floor(Math.random() * (maxMs - minMs));
+  await new Promise((resolve) => setTimeout(resolve, jitter));
+
+  // ── Layer 6: HEAD request — return 200 with no body ───────────────────────
+  if (req.method === "HEAD") {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.status(200).end();
+  }
+
+  // ── Layer 7: Deliver Secured Loader ───────────────────────────────────────
+  return sendLoader(res, ip);
+}
