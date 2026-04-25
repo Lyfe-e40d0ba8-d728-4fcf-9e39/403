@@ -16,6 +16,9 @@
     }
   ],
   "routes": [
+    // ─────────────────────────────
+    // 🔹 MAIN LOADER ENTRY
+    // ─────────────────────────────
     {
       "src": "^/flycer/?$",
       "methods": ["GET", "HEAD"],
@@ -26,17 +29,38 @@
       "methods": ["POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
       "status": 405
     },
+
+    // ─────────────────────────────
+    // 🔹 INTERNAL API (WHITELIST)
+    // ─────────────────────────────
     {
-      "src": "^/api/(.*)$",
-      "status": 404
+      "src": "^/api/load$",
+      "methods": ["GET"],
+      "dest": "/api/load"
     },
     {
       "src": "^/robots\\.txt$",
       "dest": "/api/robots"
     },
+
+    // ─────────────────────────────
+    // 🔒 BLOCK ALL OTHER API
+    // ─────────────────────────────
+    {
+      "src": "^/api/(.*)$",
+      "status": 404
+    },
+
+    // ─────────────────────────────
+    // 📁 STATIC FILES
+    // ─────────────────────────────
     {
       "handle": "filesystem"
     },
+
+    // ─────────────────────────────
+    // 🌐 FALLBACK (OPTIONAL LANDING)
+    // ─────────────────────────────
     {
       "src": "^/(.*)$",
       "dest": "/index.html"
