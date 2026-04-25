@@ -3,64 +3,43 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-XSS-Protection", "value": "1; mode=block" },
-        { "key": "Referrer-Policy", "value": "no-referrer" },
-        { "key": "Permissions-Policy", "value": "interest-cohort=()" },
-        {
-          "key": "Strict-Transport-Security",
-          "value": "max-age=31536000; includeSubDomains; preload"
-        }
+        { "key": "X-Content-Type-Options",      "value": "nosniff" },
+        { "key": "X-Frame-Options",             "value": "DENY" },
+        { "key": "Referrer-Policy",             "value": "no-referrer" },
+        { "key": "Permissions-Policy",          "value": "interest-cohort=()" },
+        { "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload" }
       ]
     }
   ],
   "routes": [
-    // ─────────────────────────────
-    // 🔹 MAIN LOADER ENTRY
-    // ─────────────────────────────
+    {
+      "src": "^/api/challenge/?$",
+      "methods": ["GET", "HEAD"],
+      "dest": "/api/challenge"
+    },
+    {
+      "src": "^/api/challenge/?$",
+      "methods": ["POST", "PUT", "DELETE", "PATCH"],
+      "status": 405
+    },
     {
       "src": "^/flycer/?$",
-      "methods": ["GET", "HEAD"],
+      "methods": ["POST", "HEAD"],
       "dest": "/api/gateway"
     },
     {
       "src": "^/flycer/?$",
-      "methods": ["POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      "methods": ["GET", "PUT", "DELETE", "PATCH"],
       "status": 405
     },
-
-    // ─────────────────────────────
-    // 🔹 INTERNAL API (WHITELIST)
-    // ─────────────────────────────
-    {
-      "src": "^/api/load$",
-      "methods": ["GET"],
-      "dest": "/api/load"
-    },
-    {
-      "src": "^/robots\\.txt$",
-      "dest": "/api/robots"
-    },
-
-    // ─────────────────────────────
-    // 🔒 BLOCK ALL OTHER API
-    // ─────────────────────────────
     {
       "src": "^/api/(.*)$",
       "status": 404
     },
-
-    // ─────────────────────────────
-    // 📁 STATIC FILES
-    // ─────────────────────────────
     {
       "handle": "filesystem"
     },
-
-    // ─────────────────────────────
-    // 🌐 FALLBACK (OPTIONAL LANDING)
-    // ─────────────────────────────
     {
       "src": "^/(.*)$",
       "dest": "/index.html"
