@@ -1,29 +1,45 @@
 {
-  "version": 2,
-  "routes": [
-    {
-      "src": "/api/gateway",
-      "dest": "/api/gateway.js",
-      "methods": ["GET", "POST", "OPTIONS"]
-    },
-    {
-      "src": "/(.+)",
-      "dest": "/api/gateway.js?_path=$1",
-      "methods": ["GET", "OPTIONS"]
-    },
-    {
-      "src": "/",
-      "dest": "/index.html"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Permissions-Policy", "value": "interest-cohort=()" },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload"
+        }
       ]
+    }
+  ],
+  "routes": [
+    {
+      "src": "^/flycer/?$",
+      "methods": ["GET", "HEAD"],
+      "dest": "/api/gateway"
+    },
+    {
+      "src": "^/flycer/?$",
+      "methods": ["POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      "status": 405
+    },
+    {
+      "src": "^/api/(.*)$",
+      "status": 404
+    },
+    {
+      "src": "^/robots\\.txt$",
+      "dest": "/api/robots"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^/(.*)$",
+      "dest": "/index.html"
     }
   ]
 }
