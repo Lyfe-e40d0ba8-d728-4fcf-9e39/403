@@ -450,40 +450,53 @@ function trackSuspicion(ip, score, reasons) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function buildLoaderScript(ip) {
-  const token     = generateSecureToken();
-  const timestamp = Date.now();
-  const nonce     = crypto.randomBytes(8).toString("hex");
+  const token = crypto.randomBytes(16).toString("hex");
+  const expiry = Date.now() + 15000; // 15 detik
 
-  // HMAC signature: covers token + timestamp + nonce
-  const payload   = `${token}:${timestamp}:${nonce}`;
-  const signature = hmacSign(payload);
+  const payload = `${token}:${expiry}:${ip}`;
+  const signature = crypto
+    .createHmac("sha256", CONFIG.secrets.hmacKey)
+    .update(payload)
+    .digest("hex");
 
-  // Encrypt the loader URL so it's not visible in plaintext
-  const encryptedUrl = encryptString(CONFIG.loader.url);
+  // simpan token sementara (anti replay)
+  usedTokens.set(token, { expiry, ip });
 
-  // Mark token as issued (for anti-replay — future enhancement)
-  usedTokens.set(signature, timestamp);
+  return `
+-- Universal Loader (HttpGet)
+local _t = "${token}"
+local _e = ${expiry}
+local _s = "${signature}"
 
-  // Generate random variable names for obfuscation
-  const vars = generateObfuscatedVarNames(12);
+local function _f()
+    if (DateTime.now().UnixTimestampMillis > _e) then
+        return nil
+    end
 
-  // Build the Lua script with multiple security layers
-  return `-- Protected Loader | ${nonce}
-local ${vars[0]}="${token}"
-local ${vars[1]}=${timestamp}
-local ${vars[2]}="${nonce}"
-local ${vars[3]}="${signature}"
-local ${vars[4]}="${encryptedUrl}"
+    local url = "https://flycer.my.id/api/load?token=".._t.."&sig=".._s
+    local ok, res = pcall(function()
+        return game:HttpGet(url)
+    end)
 
--- Integrity verification
-local function ${vars[5]}(s)
-  local h=0
-  for i=1,#s do
-    local b=string.byte(s,i)
-    h=((h*31)+b)%2147483647
-  end
-  return h
+    if ok and res and #res > 10 then
+        return res
+    end
+    return nil
 end
+
+local data = _f()
+if not data then
+    error("load failed")
+end
+
+local fn = loadstring(data)
+if not fn then
+    error("invalid script")
+end
+
+fn()
+`;
+}
 
 -- Timestamp validation (prevent replay after ${CONFIG.token.expiryMs / 1000}s)
 local ${vars[6]}=tonumber(tostring(${vars[1]}))
