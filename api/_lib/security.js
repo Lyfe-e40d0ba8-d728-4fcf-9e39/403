@@ -3,6 +3,7 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import { CONFIG } from "./config.js";
+import { randomHex } from "./crypto.js";
 
 // ── IP Extraction ─────────────────────────────────────────────────────────
 
@@ -145,9 +146,6 @@ export function applySecurityHeaders(res) {
   res.removeHeader("Server");
 
   // Unique request trace (for logging)
-  import { randomHex } from "./crypto.js".catch(() => ({
-    randomHex: () => Math.random().toString(36).slice(2),
-  }));
   res.setHeader("X-Request-Id", randomHex(8));
 }
 
