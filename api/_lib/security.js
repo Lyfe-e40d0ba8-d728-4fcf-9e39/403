@@ -145,7 +145,7 @@ export function applySecurityHeaders(res) {
   res.removeHeader("Server");
 
   // Unique request trace (for logging)
-  const { randomHex } = await import("./crypto.js").catch(() => ({
+  import { randomHex } from "./crypto.js".catch(() => ({
     randomHex: () => Math.random().toString(36).slice(2),
   }));
   res.setHeader("X-Request-Id", randomHex(8));
