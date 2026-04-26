@@ -82,115 +82,110 @@ async function parseBody(req) {
 export default async function handler(req, res) {
   const ip = getClientIp(req);
 
-  // ── Layer 0: Security headers ─────────────────────────────────────────
   applySecurityHeaders(res);
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
 
-  // ── Layer 1: Method guard (POST only for submission) ──────────────────
+  // ── Layer 1: Method guard ─────────────────────────────
   if (!isAllowedMethod(req.method, ["POST", "HEAD"])) {
     res.setHeader("Allow", "POST, HEAD");
     return res.status(405).end("-- method not allowed");
   }
 
-  // ── Layer 2: Browser block ────────────────────────────────────────────
-  if (isBrowserRequest(req)) {
+  // ── Layer 2: Browser GET fallback (SAFE FIX) ──────────
+  if (req.method === "GET") {
     applyBlockedPageHeaders(res);
-    return res.status(200)
-              .setHeader("Content-Type", "text/html; charset=utf-8")
-              .send(buildBlockedPage());
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.status(200).end("ACCESS DENIED");
   }
 
-  // ── Layer 3: Suspicion check ──────────────────────────────────────────
+  // ── Layer 3: Browser detection ─────────────────────────
+  if (isBrowserRequest(req)) {
+    applyBlockedPageHeaders(res);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(buildBlockedPage());
+  }
+
+  // ── Layer 4: Suspicion check ───────────────────────────
   const { score } = scoreExecutorSuspicion(req);
   if (score >= CONFIG.suspicion.blockScore) {
     await applyJitter();
-    return res.status(200).end("-- error");
+    return res.status(403).end("-- blocked");
   }
 
-  // ── Layer 4: Ban check ────────────────────────────────────────────────
-  const banResult = await checkBan(
-    ip,
-    CONFIG.rateLimit.ban.threshold,
-    CONFIG.rateLimit.ban.durationSec
-  );
+  // ── Layer 5: Ban check ────────────────────────────────
+  const banResult = await checkBan(ip, CONFIG.rateLimit.ban.threshold, CONFIG.rateLimit.ban.durationSec);
   if (banResult.banned) {
     res.setHeader("Retry-After", String(banResult.retryAfter));
     return res.status(429).end("-- rate limited");
   }
 
-  // ── Layer 5: Rate limit ───────────────────────────────────────────────
+  // ── Layer 6: Rate limit ───────────────────────────────
   const { gateway } = CONFIG.rateLimit;
   const rlResult = await checkRedisRateLimit(
     `rl:gateway:${ip}`,
     gateway.max,
     gateway.windowSec
   );
+
   if (rlResult.limited) {
     res.setHeader("Retry-After", String(rlResult.retryAfter));
     return res.status(429).end("-- rate limited");
   }
 
-  // ── HEAD: no body needed ──────────────────────────────────────────────
   if (req.method === "HEAD") return res.status(200).end();
 
-  // ── Layer 6: Parse & validate body ───────────────────────────────────
-  const body = await parseBody(req);
-
-  if (!body) {
+  // ── SAFE BODY PARSE (VERCEL FRIENDLY) ────────────────
+  let body;
+  try {
+    body = req.body || JSON.parse(await new Promise((r) => {
+      let data = "";
+      req.on("data", c => data += c);
+      req.on("end", () => r(data));
+    }));
+    if (typeof body === "string") body = JSON.parse(body);
+  } catch {
     return res.status(400).end("-- bad request");
   }
 
   const { challenge_id, nonce, timestamp, signature } = body;
 
-  // All fields required
   if (!challenge_id || !nonce || !timestamp || !signature) {
     return res.status(400).end("-- missing fields");
   }
 
-  // Timestamp must be a number
   const ts = Number(timestamp);
-  if (!Number.isFinite(ts) || ts <= 0) {
+  if (!Number.isFinite(ts)) {
     return res.status(400).end("-- invalid timestamp");
   }
 
-  // ── Layer 7: Challenge lookup (anti-replay via Redis) ─────────────────
+  // ── Redis check ───────────────────────────────
   const stored = await redisGet(`challenge:${challenge_id}`);
-
   if (!stored) {
-    // Challenge expired or never existed
     await applyJitter();
-    return res.status(403).end("-- challenge expired");
+    return res.status(403).end("-- expired");
   }
 
-  // ── Layer 8: Nonce match ──────────────────────────────────────────────
   if (stored.nonce !== nonce) {
     await redisDel(`challenge:${challenge_id}`);
-    await applyJitter();
     return res.status(403).end("-- invalid nonce");
   }
 
-  // ── Layer 9: Timestamp freshness ──────────────────────────────────────
   const ageMs = Date.now() - ts;
   if (ageMs < 0 || ageMs > CONFIG.challenge.expirySeconds * 1000) {
     await redisDel(`challenge:${challenge_id}`);
-    await applyJitter();
-    return res.status(403).end("-- challenge expired");
+    return res.status(403).end("-- expired");
   }
 
-  // ── Layer 10: HMAC Signature ──────────────────────────────────────────
   const sigValid = verifyChallengeSignature(nonce, ts, challenge_id, signature);
   if (!sigValid) {
     await redisDel(`challenge:${challenge_id}`);
-    await applyJitter();
     return res.status(403).end("-- invalid signature");
   }
 
-  // ── Layer 11: Consume challenge (TRUE one-time use) ───────────────────
   await redisDel(`challenge:${challenge_id}`);
 
-  // ── Layer 12: Jitter before delivery ─────────────────────────────────
   await applyJitter();
 
-  // ── Deliver loader ────────────────────────────────────────────────────
+  // ── RESPONSE ───────────────────────────────
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
   return res.status(200).end(buildLoaderScript());
 }
