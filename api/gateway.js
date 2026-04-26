@@ -57,24 +57,27 @@ collectgarbage("collect")`;
 // ── Body Parser Helper ────────────────────────────────────────────────────
 
 async function parseBody(req) {
-  return new Promise((resolve) => {
-    // Vercel typically parses JSON automatically
-    // This handles edge cases where it doesn't
-    if (req.body && typeof req.body === "object") {
-      return resolve(req.body);
+  // 1. Vercel built-in body parsing (FAST PATH)
+  if (req.body && typeof req.body === "object") {
+    return req.body;
+  }
+
+  try {
+    // 2. Stream fallback (safe for raw requests)
+    const chunks = [];
+
+    for await (const chunk of req) {
+      chunks.push(chunk);
     }
 
-    let raw = "";
-    req.on("data", (chunk) => { raw += chunk; });
-    req.on("end", () => {
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        resolve(null);
-      }
-    });
-    req.on("error", () => resolve(null));
-  });
+    const raw = Buffer.concat(chunks).toString("utf8");
+
+    if (!raw || raw.length === 0) return null;
+
+    return JSON.parse(raw);
+  } catch (err) {
+    return null;
+  }
 }
 
 // ── Main Handler ──────────────────────────────────────────────────────────
@@ -100,8 +103,8 @@ export default async function handler(req, res) {
   // ── Layer 3: Browser detection ─────────────────────────
   if (isBrowserRequest(req)) {
     applyBlockedPageHeaders(res);
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(200).send(buildBlockedPage());
+res.setHeader("Content-Type", "text/html; charset=utf-8");
+return res.status(200).end(buildBlockedPage());
   }
 
   // ── Layer 4: Suspicion check ───────────────────────────
