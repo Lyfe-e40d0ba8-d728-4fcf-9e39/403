@@ -1,48 +1,58 @@
 {
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options",      "value": "nosniff" },
-        { "key": "X-Frame-Options",             "value": "DENY" },
-        { "key": "Referrer-Policy",             "value": "no-referrer" },
-        { "key": "Permissions-Policy",          "value": "interest-cohort=()" },
-        { "key": "Strict-Transport-Security",
-          "value": "max-age=31536000; includeSubDomains; preload" }
-      ]
-    }
-  ],
-  "routes": [
-    {
-      "src": "^/api/challenge/?$",
-      "methods": ["GET", "HEAD"],
-      "dest": "/api/challenge"
-    },
-    {
-      "src": "^/api/challenge/?$",
-      "methods": ["POST", "PUT", "DELETE", "PATCH"],
-      "status": 405
-    },
-    {
-      "src": "^/flycer/?$",
-      "methods": ["POST", "HEAD"],
-      "dest": "/api/gateway"
-    },
-    {
-      "src": "^/flycer/?$",
-      "methods": ["GET", "PUT", "DELETE", "PATCH"],
-      "status": 405
-    },
-    {
-      "src": "^/api/(.*)$",
-      "status": 404
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "^/(.*)$",
-      "dest": "/index.html"
-    }
-  ]
+    "headers": [{
+        "source": "/(.*)",
+        "headers": [{
+                "key": "X-Content-Type-Options",
+                "value": "nosniff"
+            },
+            {
+                "key": "X-Frame-Options",
+                "value": "DENY"
+            },
+            {
+                "key": "Referrer-Policy",
+                "value": "no-referrer"
+            },
+            {
+                "key": "Permissions-Policy",
+                "value": "interest-cohort=()"
+            },
+            {
+                "key": "Strict-Transport-Security",
+                "value": "max-age=31536000; includeSubDomains; preload"
+            }
+        ]
+    }],
+    "routes": [{
+            "src": "^/api/challenge/?$",
+            "methods": ["GET", "HEAD"],
+            "dest": "/api/challenge"
+        },
+        {
+            "src": "^/api/challenge/?$",
+            "methods": ["POST", "PUT", "DELETE", "PATCH"],
+            "status": 405
+        },
+        {
+            "src": "^/flycer/?$",
+            "methods": ["POST", "HEAD"],
+            "dest": "/api/gateway"
+        },
+        {
+            "src": "^/flycer/?$",
+            "methods": ["GET", "PUT", "DELETE", "PATCH"],
+            "status": 405
+        },
+        {
+            "src": "^/api/(.*)$",
+            "status": 404
+        },
+        {
+            "handle": "filesystem"
+        },
+        {
+            "src": "^/(.*)$",
+            "dest": "/index.html"
+        }
+    ]
 }
