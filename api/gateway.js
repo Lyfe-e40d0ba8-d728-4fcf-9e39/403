@@ -7,6 +7,8 @@
 //
 //  Signature:       HMAC-SHA256(secret, nonce + ":" + timestamp + ":" + challenge_id)
 // ══════════════════════════════════════════════════════════════════════════
+import { validateEnv } from "./_lib/validate-env.js";
+validateEnv();
 
 import {
     CONFIG
@@ -20,9 +22,6 @@ import {
     isAllowedMethod,
     applyJitter
 } from "./_lib/security.js";
-
-import { validateEnv } from "./_lib/validate-env.js";
-validateEnv();
 
 import {
     verifyChallengeSignature
