@@ -48,7 +48,7 @@ const CONFIG = {
 
   // ── Blocked page content ──────────────────────────────────────────────
   page: {
-    title:   "Gateway Loader",
+    title:   "Access Denied | Flycer Developments",
     badge:   "403 Forbidden",
     heading: { prefix: "ACCESS", highlight: "DENIED" },
     subtitle: [
