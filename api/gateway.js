@@ -12,10 +12,10 @@ import crypto from "crypto";
 const CONFIG = {
 
   secrets: {
-    hmacKey:   "f7x2!kLqP#9mVnRt@WdYc8JzUeAsBh3G",
-    tokenSalt: "Qw!eRtYu@IoPaSdF#gHjKlZxCvBnM1234",
+    hmacKey:   "d042dc86a8e0cacc33c264fe2c1dd7e483b23e46ca688e7c1fbe26b316161c3a",
+    tokenSalt: "f3351d2343ffd30f1e0a40a23bcbee60ba79f5ac7c06482ffcee93796a0d9bb2",
     // Key khusus untuk encrypt URL di Lua (16 chars = 128-bit XOR key)
-    luaEncryptKey: "Fy$3rK8m!Qp2Wx9Z",
+    luaEncryptKey: "!&AX%CSOTV%autCI",
   },
 
   loader: {
