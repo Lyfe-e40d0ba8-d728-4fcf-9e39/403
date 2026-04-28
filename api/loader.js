@@ -2,10 +2,10 @@
 export const LOADERS = {
 
   // ── Loader yang sudah ada ─────────────────────────────────────────────
-  "v3": {
+  "v3/ae3a52604adf": {
     url:    "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/refs/heads/main/Test",
     active: true,
-    note:   "Main loader v2",
+    note:   "Main Loader Premium v2",
   },
 
   // ── Tambah loader baru di bawah ini ───────────────────────────────────
