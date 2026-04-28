@@ -10,8 +10,8 @@ export const LOADERS = {
 
   // ── Tambah loader baru di bawah ini ───────────────────────────────────
 
-  "v2/script2": {
-    url:    "https://raw.githubusercontent.com/user/repo/main/script2.lua",
+  "v2/Testing": {
+    url:    "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/refs/heads/main/Test",
     active: true,
     note:   "Script 2",
   },
