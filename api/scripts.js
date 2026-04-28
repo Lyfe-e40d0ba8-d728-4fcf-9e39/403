@@ -285,14 +285,6 @@ ${v.src}=nil
 if type(${v.fn})~="function" then
 return
 end
-${v.fn}()
-${v.fn}=nil
-${v.t0}=nil
-pcall(function()
-local ok,_=pcall(collectgarbage,"collect")
-if not ok then pcall(gcinfo) end
-end)
-${j()}`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -328,7 +320,7 @@ function scoreSuspicion(req) {
   for (const { header, score: s } of penaltyHeaders) {
     if (req.headers[header] !== undefined) score += s;
   }
-  return score;
+  retrn score;
 }
 
 function checkRateLimit(ip) {
