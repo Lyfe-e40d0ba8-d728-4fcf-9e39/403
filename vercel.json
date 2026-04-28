@@ -9,6 +9,10 @@
       "dest": "/api/gateway"
     },
     {
+      "src": "^/api/gateway/?$",
+      "dest": "/api/gateway"
+    },
+    {
       "src": "^/api/(.*)$",
       "status": 404
     },
