@@ -288,7 +288,10 @@ end
 ${v.fn}()
 ${v.fn}=nil
 ${v.t0}=nil
-collectgarbage("collect")
+pcall(function()
+local ok,_=pcall(collectgarbage,"collect")
+if not ok then pcall(gcinfo) end
+end)
 ${j()}`;
 }
 
