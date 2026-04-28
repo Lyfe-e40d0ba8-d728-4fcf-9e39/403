@@ -1,16 +1,10 @@
+// api/loader.js
 export const LOADERS = {
 
   "v2/kyoukara": {
-    url:    "https://raw.githubusercontent.com/...",
+    url:    "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/refs/heads/main/Test",
     active: true,
-    note:   "Main loader",
-  },
-
-  // Tambah di sini ↓
-  "v2/newscript": {
-    url:    "https://raw.githubusercontent.com/user/repo/main/new.lua",
-    active: true,
-    note:   "Script baru",
+    note:   "Main loader v2",
   },
 
 };
