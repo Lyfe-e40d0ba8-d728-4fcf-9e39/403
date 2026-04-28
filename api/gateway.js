@@ -13,8 +13,8 @@ const CONFIG = {
 
   // ── Secrets (ganti dengan string random milikmu) ──────────────────────
   secrets: {
-    hmacKey:   "f7x2!kLqP#9mVnRt@WdYc8JzUeAsBh3G",   // min 32 chars
-    tokenSalt: "Qw!eRtYu@IoPaSdF#gHjKlZxCvBnM1234",   // min 32 chars
+    hmacKey:   "525d8985c7596c468d486937a51ad6b2d288f50a40af7c22e41fb58a7c7ec78d",   // min 32 chars
+    tokenSalt: "486eb73173e13138f7fa850de95ff372114d09572930a35b46720fc24eaeba1c",   // min 32 chars
   },
 
   // ── Loader URL ────────────────────────────────────────────────────────
