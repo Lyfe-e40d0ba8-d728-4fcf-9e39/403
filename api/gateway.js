@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  FLYCER GATEWAY v4.0 — Single file, no .env, no Redis
+//  FLYCER GATEWAY v4.1 — Single file, no .env, no Redis
 //  Vercel Serverless compatible
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -44,8 +44,8 @@ const CONFIG = {
 
   // ── Page Content ──────────────────────────────────────────────────────
   page: {
-    title:  "Gateway Loader",
-    badge:  "403 Forbidden",
+    title:   "Gateway Loader",
+    badge:   "403 Forbidden",
     heading: { prefix: "ACCESS", highlight: "DENIED" },
     subtitle: [
       "This endpoint is restricted.",
@@ -115,18 +115,16 @@ const challengeStore = new Map();
 // Map<ip, { count, windowStart }>
 const rateLimitStore = new Map();
 
-// ── Periodic cleanup (runs inside same instance) ──────────────────────────
+// ── Periodic cleanup ──────────────────────────────────────────────────────
 setInterval(() => {
   const now = Date.now();
 
-  // Hapus challenge kadaluarsa
   for (const [id, data] of challengeStore) {
     if (now - data.timestamp > CONFIG.challenge.expiryMs * 2) {
       challengeStore.delete(id);
     }
   }
 
-  // Hapus rate limit entry lama
   for (const [ip, data] of rateLimitStore) {
     if (now - data.windowStart > CONFIG.rateLimit.windowMs * 2) {
       rateLimitStore.delete(ip);
@@ -153,7 +151,6 @@ function hmacSign(data) {
     .digest("hex");
 }
 
-// Timing-safe comparison
 function safeCompare(a, b) {
   if (typeof a !== "string" || typeof b !== "string") return false;
   if (a.length !== b.length) return false;
@@ -164,7 +161,6 @@ function safeCompare(a, b) {
   }
 }
 
-// Signature: HMAC(nonce + ":" + timestamp + ":" + challenge_id)
 function buildSignature(nonce, timestamp, challengeId) {
   return hmacSign(`${nonce}:${timestamp}:${challengeId}`);
 }
@@ -190,13 +186,13 @@ function getClientIp(req) {
 function isBrowserRequest(req) {
   const ua = (req.headers["user-agent"] || "").toLowerCase();
 
-  // Allowlist check
+  // Allowlist — executor yang diizinkan
   if (CONFIG.browser.allowlist.some((k) => ua.includes(k))) return false;
 
-  // UA keyword check
+  // UA keyword — cocok = browser/tool
   if (CONFIG.browser.keywords.some((k) => ua.includes(k))) return true;
 
-  // Browser-only headers
+  // Browser-only security headers
   if (CONFIG.browser.browserOnlyHeaders.some((h) => req.headers[h])) return true;
 
   // Browser-like Accept header
@@ -209,13 +205,13 @@ function isBrowserRequest(req) {
 }
 
 function scoreSuspicion(req) {
-  const ua  = req.headers["user-agent"] || "";
+  const ua = req.headers["user-agent"] || "";
   const { penaltyHeaders, penalties } = CONFIG.executor;
   let score = 0;
 
-  if (ua.length === 0)   score += penalties.emptyUA;
-  else if (ua.length < 5)  score += penalties.shortUA;
-  else if (ua.length > 400) score += penalties.longUA;
+  if (ua.length === 0)        score += penalties.emptyUA;
+  else if (ua.length < 5)     score += penalties.shortUA;
+  else if (ua.length > 400)   score += penalties.longUA;
 
   for (const { header, score: s } of penaltyHeaders) {
     if (req.headers[header] !== undefined) score += s;
@@ -234,7 +230,6 @@ function checkRateLimit(ip) {
   const now   = Date.now();
   const entry = rateLimitStore.get(ip) || { count: 0, windowStart: now };
 
-  // Reset window
   if (now - entry.windowStart > windowMs) {
     entry.count       = 1;
     entry.windowStart = now;
@@ -429,8 +424,8 @@ collectgarbage("collect")`;
 // ══════════════════════════════════════════════════════════════════════════
 
 function getRoute(req) {
-  const url = req.url || "";
-  const path = url.split("?")[0].replace(/\/+$/, "");
+  const raw  = req.url || "";
+  const path = raw.split("?")[0].replace(/\/+$/, "");
 
   if (path === "/api/challenge") return "challenge";
   if (path === "/api/gateway" || path === "/flycer") return "gateway";
@@ -442,7 +437,6 @@ function getRoute(req) {
 // ══════════════════════════════════════════════════════════════════════════
 
 async function parseBody(req) {
-  // Vercel biasanya sudah parse JSON otomatis
   if (req.body && typeof req.body === "object") return req.body;
 
   return new Promise((resolve) => {
@@ -457,32 +451,37 @@ async function parseBody(req) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  HANDLERS
+//  SHARED — Browser block response
 // ══════════════════════════════════════════════════════════════════════════
 
-// ── /api/challenge ────────────────────────────────────────────────────────
+function sendBlockedPage(res) {
+  applyBlockedPageCSP(res);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.status(200).send(buildBlockedPage());
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  HANDLER — /api/challenge
+// ══════════════════════════════════════════════════════════════════════════
 
 async function handleChallenge(req, res) {
-  // Method guard
+
+  // ── Layer 1: Browser block — SELALU PERTAMA ───────────────────────────
+  if (isBrowserRequest(req)) return sendBlockedPage(res);
+
+  // ── Layer 2: Method guard ─────────────────────────────────────────────
   if (!["GET", "HEAD"].includes(req.method)) {
     res.setHeader("Allow", "GET, HEAD");
     return res.status(405).end("-- method not allowed");
   }
 
-  // Browser block
-  if (isBrowserRequest(req)) {
-    applyBlockedPageCSP(res);
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(200).send(buildBlockedPage());
-  }
-
-  // Suspicion
+  // ── Layer 3: Suspicion ────────────────────────────────────────────────
   if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
     await jitter();
     return res.status(200).end("-- error");
   }
 
-  // Rate limit
+  // ── Layer 4: Rate limit ───────────────────────────────────────────────
   const ip = getClientIp(req);
   const rl  = checkRateLimit(ip);
   if (rl.limited) {
@@ -490,9 +489,10 @@ async function handleChallenge(req, res) {
     return res.status(429).end("-- rate limited");
   }
 
+  // ── HEAD — tidak perlu body ───────────────────────────────────────────
   if (req.method === "HEAD") return res.status(200).end();
 
-  // Trim store jika terlalu besar (prevent memory bloat)
+  // ── Trim store jika penuh ─────────────────────────────────────────────
   if (challengeStore.size >= CONFIG.challenge.maxStored) {
     const now = Date.now();
     for (const [id, d] of challengeStore) {
@@ -504,45 +504,42 @@ async function handleChallenge(req, res) {
 
   await jitter();
 
-  // Generate challenge
+  // ── Generate & simpan challenge ───────────────────────────────────────
   const nonce        = randomToken(24);
   const challenge_id = randomHex(16);
   const timestamp    = Date.now();
 
   challengeStore.set(challenge_id, { nonce, timestamp });
-
-  // Auto-delete setelah expiry
   setTimeout(() => challengeStore.delete(challenge_id), CONFIG.challenge.expiryMs * 2);
 
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   return res.status(200).json({ challenge_id, nonce, timestamp });
 }
 
-// ── /api/gateway (/flycer) ────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+//  HANDLER — /api/gateway  &  /flycer
+// ══════════════════════════════════════════════════════════════════════════
 
 async function handleGateway(req, res) {
+
+  // ── Layer 1: Browser block — SELALU PERTAMA ───────────────────────────
+  if (isBrowserRequest(req)) return sendBlockedPage(res);
+
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
 
-  // Method guard
+  // ── Layer 2: Method guard ─────────────────────────────────────────────
   if (!["POST", "HEAD"].includes(req.method)) {
     res.setHeader("Allow", "POST, HEAD");
     return res.status(405).end("-- method not allowed");
   }
 
-  // Browser block
-  if (isBrowserRequest(req)) {
-    applyBlockedPageCSP(res);
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(200).send(buildBlockedPage());
-  }
-
-  // Suspicion
+  // ── Layer 3: Suspicion ────────────────────────────────────────────────
   if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
     await jitter();
     return res.status(200).end("-- error");
   }
 
-  // Rate limit
+  // ── Layer 4: Rate limit ───────────────────────────────────────────────
   const ip = getClientIp(req);
   const rl  = checkRateLimit(ip);
   if (rl.limited) {
@@ -550,40 +547,41 @@ async function handleGateway(req, res) {
     return res.status(429).end("-- rate limited");
   }
 
+  // ── HEAD — tidak perlu body ───────────────────────────────────────────
   if (req.method === "HEAD") return res.status(200).end();
 
-  // Parse body
+  // ── Layer 5: Parse body ───────────────────────────────────────────────
   const body = await parseBody(req);
   if (!body) return res.status(400).end("-- bad request");
 
   const { challenge_id, nonce, timestamp, signature } = body;
 
-  // Field presence check
+  // ── Layer 6: Field presence ───────────────────────────────────────────
   if (!challenge_id || !nonce || !timestamp || !signature) {
     return res.status(400).end("-- missing fields");
   }
 
-  // Timestamp type check
+  // ── Layer 7: Timestamp type ───────────────────────────────────────────
   const ts = Number(timestamp);
   if (!Number.isFinite(ts) || ts <= 0) {
     return res.status(400).end("-- invalid timestamp");
   }
 
-  // Challenge lookup
+  // ── Layer 8: Challenge lookup ─────────────────────────────────────────
   const stored = challengeStore.get(challenge_id);
   if (!stored) {
     await jitter();
     return res.status(403).end("-- challenge expired");
   }
 
-  // Nonce match
+  // ── Layer 9: Nonce match ──────────────────────────────────────────────
   if (stored.nonce !== nonce) {
     challengeStore.delete(challenge_id);
     await jitter();
     return res.status(403).end("-- invalid nonce");
   }
 
-  // Freshness
+  // ── Layer 10: Freshness ───────────────────────────────────────────────
   const ageMs = Date.now() - ts;
   if (ageMs < 0 || ageMs > CONFIG.challenge.expiryMs) {
     challengeStore.delete(challenge_id);
@@ -591,14 +589,14 @@ async function handleGateway(req, res) {
     return res.status(403).end("-- challenge expired");
   }
 
-  // HMAC signature
+  // ── Layer 11: HMAC signature (timing-safe) ────────────────────────────
   if (!verifySignature(nonce, ts, challenge_id, signature)) {
     challengeStore.delete(challenge_id);
     await jitter();
     return res.status(403).end("-- invalid signature");
   }
 
-  // Consume challenge — true one-time use
+  // ── Layer 12: Consume challenge — true one-time use ───────────────────
   challengeStore.delete(challenge_id);
 
   await jitter();
@@ -611,7 +609,8 @@ async function handleGateway(req, res) {
 // ══════════════════════════════════════════════════════════════════════════
 
 export default async function handler(req, res) {
-  // Security headers — always first
+
+  // Security headers — selalu pertama sebelum apapun
   applyBaseHeaders(res);
 
   const route = getRoute(req);
@@ -619,6 +618,7 @@ export default async function handler(req, res) {
   if (route === "challenge") return handleChallenge(req, res);
   if (route === "gateway")   return handleGateway(req, res);
 
-  // Unknown route
+  // Unknown route — browser dapat blocked page, lainnya 404
+  if (isBrowserRequest(req)) return sendBlockedPage(res);
   return res.status(404).end("-- not found");
 }
