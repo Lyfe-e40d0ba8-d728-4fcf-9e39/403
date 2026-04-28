@@ -1,15 +1,17 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  FLYCER SCRIPTS ENGINE v9.1
-//  Handler untuk: /loaders/:version/:name
-//  Single-line executor compatible:
+//  FLYCER SCRIPTS ENGINE v10.0 — Universal XOR-Only
+//  Compatible: ALL executors (mobile + PC, Lua 5.1 / Luau)
+//
 //  loadstring(game:HttpGet("https://flycer.my.id/loaders/v2/kyoukara"))()
 //
 //  Registry → api/loader.js
 //  Engine   → api/scripts.js (file ini)
+//
+//  NO ~ operator, NO // operator, NO bit32, NO external library
 // ══════════════════════════════════════════════════════════════════════════
 
 import crypto          from "crypto";
-import { LOADERS }     from "./loader.js";   // ← Import registry dari loader.js
+import { LOADERS }     from "./loader.js";
 
 // ══════════════════════════════════════════════════════════════════════════
 //  CONFIG
@@ -17,25 +19,20 @@ import { LOADERS }     from "./loader.js";   // ← Import registry dari loader.
 
 const CONFIG = {
 
-  // ── Secrets — WAJIB SAMA dengan gateway.js ───────────────────────────
   secrets: {
-    aesKey:  "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",  // EXACTLY 32 chars
-    hmacKey: "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
+    aesKey:  "thV#e9Nusf0pF4L5wy7arEF$MefV46L8",
+    hmacKey: "62631413ec3e236a82d809d31bb4d666f43d2fee207c599320786d8cfad18b71",
   },
 
-  // ── Rate limit ────────────────────────────────────────────────────────
   rateLimit: {
     windowMs:    60_000,
     maxRequests: 10,
   },
 
-  // ── Suspicion ─────────────────────────────────────────────────────────
   suspicion: { blockScore: 10 },
 
-  // ── Jitter ────────────────────────────────────────────────────────────
   jitter: { minMs: 30, maxMs: 100 },
 
-  // ── Blocked page ──────────────────────────────────────────────────────
   page: {
     title:   "Gateway Loader",
     badge:   "403 Forbidden",
@@ -61,7 +58,6 @@ const CONFIG = {
   },
   tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
 
-  // ── Browser detection ─────────────────────────────────────────────────
   browser: {
     uaKeywords: [
       "mozilla","chrome","safari","firefox","edge","opera","brave",
@@ -80,7 +76,6 @@ const CONFIG = {
     ],
   },
 
-  // ── Executor suspicion ────────────────────────────────────────────────
   executor: {
     penaltyHeaders: [
       { header: "referer",  score: 3 },
@@ -108,126 +103,48 @@ setInterval(() => {
 }, 30_000);
 
 // ══════════════════════════════════════════════════════════════════════════
-//  CRYPTO
+//  CRYPTO — SERVER SIDE
 // ══════════════════════════════════════════════════════════════════════════
 
 function randomHex(n = 16) {
   return crypto.randomBytes(n).toString("hex");
 }
 
-function aesEncrypt(plaintext) {
+// ── Server-side AES transform (internal obfuscation, not sent to client) ─
+
+function serverAesTransform(plaintext) {
   const key = crypto.createHash("sha256").update(CONFIG.secrets.aesKey).digest();
   const iv  = crypto.randomBytes(16);
-  const c   = crypto.createCipheriv("aes-256-cbc", key, iv);
-  const ct  = Buffer.concat([
-    c.update(Buffer.from(plaintext, "utf8")),
-    c.final(),
+
+  // Encrypt
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(Buffer.from(plaintext, "utf8")),
+    cipher.final(),
   ]);
-  return {
-    key: Array.from(key),
-    iv:  Array.from(iv),
-    ct:  Array.from(ct),
-  };
+
+  // Immediately decrypt (AES is server-side transform only)
+  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+  const decrypted = Buffer.concat([
+    decipher.update(encrypted),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString("utf8");
 }
 
-function xorLayer(data) {
-  const key   = Array.from(crypto.randomBytes(16));
-  const xored = data.map((b, i) => b ^ key[i % key.length]);
-  return { xored, key };
-}
+// ── XOR encrypt for client (Lua-compatible) ──────────────────────────────
 
-function encryptUrl(url) {
-  const { key: ak, iv: aiv, ct } = aesEncrypt(url);
+function xorEncryptForClient(plaintext) {
+  const key      = Array.from(crypto.randomBytes(16));
+  const bytes    = Array.from(Buffer.from(plaintext, "utf8"));
+  const xored    = bytes.map((b, i) => b ^ key[i % key.length]);
 
-  const { xored: ctX, key: ctK } = xorLayer(ct);
-  const { xored: ivX, key: ivK } = xorLayer(aiv);
-  const { xored: akX, key: akK } = xorLayer(ak);
+  // Split key into 2 halves (extra obfuscation)
+  const keyHalf1 = key.slice(0, 8);
+  const keyHalf2 = key.slice(8, 16);
 
-  return { ctX, ctK, ivX, ivK, akX, akK };
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-//  PURE LUA AES-256-CBC
-// ══════════════════════════════════════════════════════════════════════════
-
-function getLuaAES() {
-  return `local function _AES_D(kb,ib,cb)
-local S={99,124,119,123,242,107,111,197,48,1,103,43,254,215,171,118,202,130,201,125,250,89,71,240,173,212,162,175,156,164,114,192,183,253,147,38,54,63,247,204,52,165,229,241,113,216,49,21,4,199,35,195,24,150,5,154,7,18,128,226,235,39,178,117,9,131,44,26,27,110,90,160,82,59,214,179,41,227,47,132,83,209,0,237,32,252,177,91,106,203,190,57,74,76,88,207,208,239,170,251,67,77,51,133,69,249,2,127,80,60,159,168,81,163,64,143,146,157,56,245,188,182,218,33,16,255,243,210,205,12,19,236,95,151,68,23,196,167,126,61,100,93,25,115,96,129,79,220,34,42,144,136,70,238,184,20,222,94,11,219,224,50,58,10,73,6,36,92,194,211,172,98,145,149,228,121,231,200,55,109,141,213,78,169,108,86,244,234,101,122,174,8,186,120,37,46,28,166,180,198,232,221,116,31,75,189,139,138,112,62,181,102,72,3,246,14,97,53,87,185,134,193,29,158,225,248,152,17,105,217,142,148,155,30,135,233,206,85,40,223,140,161,137,13,191,230,66,104,65,153,45,15,176,84,187,22}
-local Si={} for i=0,255 do Si[S[i+1]]=i end
-local function gm(a,b)
-local r=0
-while b>0 do
-if b%2==1 then r=r~a end
-local h=a>=128
-a=(a*2)%256
-if h then a=a~0x1b end
-b=math.floor(b/2)
-end
-return r
-end
-local function ek(key)
-local nk=#key//4
-local nr=nk+6
-local w={}
-for i=0,nk-1 do
-w[i]={key[i*4+1],key[i*4+2],key[i*4+3],key[i*4+4]}
-end
-local rc={0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1b,0x36}
-for i=nk,(4*(nr+1)-1) do
-local t={w[i-1][1],w[i-1][2],w[i-1][3],w[i-1][4]}
-if i%nk==0 then
-t={S[t[2]+1]~rc[i//nk],S[t[3]+1],S[t[4]+1],S[t[1]+1]}
-elseif nk>6 and i%nk==4 then
-t={S[t[1]+1],S[t[2]+1],S[t[3]+1],S[t[4]+1]}
-end
-w[i]={w[i-nk][1]~t[1],w[i-nk][2]~t[2],w[i-nk][3]~t[3],w[i-nk][4]~t[4]}
-end
-return w,nr
-end
-local function ark(st,w,r)
-for c=0,3 do for row=0,3 do st[row+1][c+1]=st[row+1][c+1]~w[r*4+c][row+1] end end
-end
-local function isb(st)
-for c=0,3 do for r=0,3 do st[r+1][c+1]=Si[st[r+1][c+1]] end end
-end
-local function isr(st)
-local tmp={}
-for r=0,3 do tmp[r+1]={} for c=0,3 do tmp[r+1][c+1]=st[r+1][(c-r)%4+1] end end
-for r=0,3 do for c=0,3 do st[r+1][c+1]=tmp[r+1][c+1] end end
-end
-local function imc(st)
-for c=0,3 do
-local a,b,cc,d=st[1][c+1],st[2][c+1],st[3][c+1],st[4][c+1]
-st[1][c+1]=gm(a,14)~gm(b,11)~gm(cc,13)~gm(d,9)
-st[2][c+1]=gm(a,9)~gm(b,14)~gm(cc,11)~gm(d,13)
-st[3][c+1]=gm(a,13)~gm(b,9)~gm(cc,14)~gm(d,11)
-st[4][c+1]=gm(a,11)~gm(b,13)~gm(cc,9)~gm(d,14)
-end
-end
-local function db(blk,w,nr)
-local st={{},{},{},{}}
-for r=0,3 do for c=0,3 do st[r+1][c+1]=blk[r+c*4+1] end end
-ark(st,w,nr)
-for rd=nr-1,1,-1 do isr(st) isb(st) ark(st,w,rd) imc(st) end
-isr(st) isb(st) ark(st,w,0)
-local o={}
-for c=0,3 do for r=0,3 do o[r+c*4+1]=st[r+1][c+1] end end
-return o
-end
-local w,nr=ek(kb)
-local out={}
-local prev={table.unpack(ib)}
-for i=1,#cb,16 do
-local blk={} for j=0,15 do blk[j+1]=cb[i+j] or 0 end
-local dec=db(blk,w,nr)
-for j=1,16 do if i+j-1<=#cb then out[#out+1]=dec[j]~prev[j] end end
-prev=blk
-end
-local pad=out[#out] or 0
-for _=1,pad do table.remove(out) end
-local rs={} for _,b in ipairs(out) do rs[#rs+1]=string.char(b) end
-return table.concat(rs)
-end`;
+  return { xored, keyHalf1, keyHalf2 };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -241,23 +158,51 @@ function luaVar() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  LUA LOADER BUILDER
+//  LUA LOADER BUILDER — UNIVERSAL XOR-ONLY
+//
+//  ✅ NO ~ operator         (uses arithmetic XOR via math.floor)
+//  ✅ NO // operator        (uses math.floor(a/b))
+//  ✅ NO bit32 library      (pure arithmetic)
+//  ✅ NO external library   (self-contained)
+//  ✅ Compatible: Lua 5.1, Luau, ALL executors
+//
+//  Every request produces a UNIQUE script:
+//  ✓ Different XOR keys (random per request)
+//  ✓ Different variable names (random per request)
+//  ✓ Different junk comments (random per request)
+//  ✓ No readable URL anywhere in the script
+//  ✓ Key split into 2 halves (harder to extract)
+//
+//  Client flow:
+//  Reassemble key → XOR decrypt → URL string → HttpGet → loadstring
 // ══════════════════════════════════════════════════════════════════════════
 
 function buildLoader(loaderUrl) {
-  const { ctX, ctK, ivX, ivK, akX, akK } = encryptUrl(loaderUrl);
 
+  // Server-side AES transform (internal obfuscation)
+  const transformed = serverAesTransform(loaderUrl);
+
+  // XOR encrypt for client delivery
+  const { xored, keyHalf1, keyHalf2 } = xorEncryptForClient(transformed);
+
+  // Random variable names — unique every request
   const v = {
-    ctX: luaVar(), ctK: luaVar(),
-    ivX: luaVar(), ivK: luaVar(),
-    akX: luaVar(), akK: luaVar(),
-    xfn: luaVar(),
-    ct:  luaVar(), iv:  luaVar(), ak:  luaVar(),
-    url: luaVar(), hg:  luaVar(),
-    ok:  luaVar(), src: luaVar(), fn:  luaVar(),
-    t0:  luaVar(), spy: luaVar(),
+    d:    luaVar(),   // xorData array
+    k1:   luaVar(),   // key half 1
+    k2:   luaVar(),   // key half 2
+    k:    luaVar(),   // reassembled full key
+    xfn:  luaVar(),   // xor function
+    bfn:  luaVar(),   // byte-to-string function
+    url:  luaVar(),   // decrypted url
+    hg:   luaVar(),   // HttpGet ref
+    ok:   luaVar(),   // pcall success
+    src:  luaVar(),   // fetched source
+    fn:   luaVar(),   // loadstring result
+    t0:   luaVar(),   // tick start
+    spy:  luaVar(),   // anti-spy flag
   };
 
+  // Junk comments — unique hash every request
   const j = () => `--[[${randomHex(6)}]]`;
 
   return `${j()}
@@ -278,56 +223,73 @@ pcall(function() if type(setclipboard)=="function" then setclipboard=function()e
 pcall(function() if type(writefile)=="function" then writefile=function()end end end)
 pcall(function() if type(readfile)=="function" then readfile=function()end end end)
 ${j()}
-local ${v.xfn}=function(d,k)
+local ${v.xfn}=function(a,b)
+local o=0
+local p=1
+for i=0,7 do
+local ba=math.floor(a/p)%2
+local bb=math.floor(b/p)%2
+if ba~=bb then
+o=o+p
+end
+p=p*2
+end
+return o
+end
+${j()}
+local ${v.d}={${xored.join(",")}}
+local ${v.k1}={${keyHalf1.join(",")}}
+local ${v.k2}={${keyHalf2.join(",")}}
+if tick()-${v.t0}>8 then return end
+local ${v.k}={}
+for i=1,#${v.k1} do ${v.k}[i]=${v.k1}[i] end
+for i=1,#${v.k2} do ${v.k}[#${v.k1}+i]=${v.k2}[i] end
+${v.k1}=nil
+${v.k2}=nil
+${j()}
+local ${v.bfn}=function(d,k,xf)
 local r={}
 for i=1,#d do
-local a,b=d[i],k[((i-1)%#k)+1]
-local o=0
-for p=0,7 do
-if(math.floor(a/2^p)%2)~=(math.floor(b/2^p)%2)then o=o+2^p end
+local ki=((i-1)%#k)+1
+r[i]=string.char(xf(d[i],k[ki]))
 end
-r[i]=o
+return table.concat(r)
 end
-return r
-end
-${j()}
-local ${v.ctX}={${ctX.join(",")}}
-local ${v.ctK}={${ctK.join(",")}}
-local ${v.ivX}={${ivX.join(",")}}
-local ${v.ivK}={${ivK.join(",")}}
-local ${v.akX}={${akX.join(",")}}
-local ${v.akK}={${akK.join(",")}}
-if tick()-${v.t0}>8 then return end
-local ${v.ct}=${v.xfn}(${v.ctX},${v.ctK})
-local ${v.iv}=${v.xfn}(${v.ivX},${v.ivK})
-local ${v.ak}=${v.xfn}(${v.akX},${v.akK})
-${v.ctX}=nil ${v.ctK}=nil
-${v.ivX}=nil ${v.ivK}=nil
-${v.akX}=nil ${v.akK}=nil
+local ${v.url}=${v.bfn}(${v.d},${v.k},${v.xfn})
+${v.d}=nil
+${v.k}=nil
 ${v.xfn}=nil
+${v.bfn}=nil
 ${j()}
-${getLuaAES()}
-${j()}
-local ${v.url}=_AES_D(${v.ak},${v.iv},${v.ct})
-_AES_D=nil
-${v.ak}=nil ${v.iv}=nil ${v.ct}=nil
-if type(${v.url})~="string"or #${v.url}<10 then ${v.url}=nil return end
-if tick()-${v.t0}>20 then ${v.url}=nil return end
+if type(${v.url})~="string" or #${v.url}<10 then
+${v.url}=nil
+return
+end
+if tick()-${v.t0}>15 then
+${v.url}=nil
+return
+end
 ${j()}
 local ${v.hg}=game.HttpGet
 local ${v.ok},${v.src}=pcall(function()
 return ${v.hg}(game,${v.url})
 end)
-${v.url}=nil ${v.hg}=nil
-if not ${v.ok} or type(${v.src})~="string"or #${v.src}==0 then
-${v.src}=nil return
+${v.url}=nil
+${v.hg}=nil
+if not ${v.ok} or type(${v.src})~="string" or #${v.src}==0 then
+${v.src}=nil
+return
 end
 local ${v.fn}=loadstring(${v.src})
 ${v.src}=nil
-if type(${v.fn})~="function" then return end
+if type(${v.fn})~="function" then
+return
+end
 ${v.fn}()
-${v.fn}=nil ${v.t0}=nil
-collectgarbage("collect")${j()}`;
+${v.fn}=nil
+${v.t0}=nil
+collectgarbage("collect")
+${j()}`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -489,14 +451,26 @@ function buildBlockedPage() {
 
 // ══════════════════════════════════════════════════════════════════════════
 //  ROUTE PARSER
-//  Match: /loaders/:version/:name
 // ══════════════════════════════════════════════════════════════════════════
 
 function parseRoute(req) {
-  const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
-  const m    = path.match(/^\/loaders\/([^/]+\/[^/]+)$/);
-  if (!m) return null;
-  return m[1]; // "v2/kyoukara"
+  const raw  = req.url || "";
+  const path = raw.split("?")[0].replace(/\/+$/, "");
+
+  const m1 = path.match(/\/loaders\/([^/]+\/[^/]+)$/);
+  if (m1) return m1[1];
+
+  const m2 = path.match(/\/([^/]+\/[^/]+)$/);
+  if (m2 && !m2[1].startsWith("api/")) return m2[1];
+
+  try {
+    const url     = new URL(raw, "http://localhost");
+    const version = url.searchParams.get("version");
+    const name    = url.searchParams.get("name");
+    if (version && name) return `${version}/${name}`;
+  } catch {}
+
+  return null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -549,7 +523,7 @@ export default async function handler(req, res) {
     return res.status(404).end("-- not found");
   }
 
-  // L6: Registry lookup (dari loader.js)
+  // L6: Registry lookup
   const entry = LOADERS[key];
   if (!entry) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -570,7 +544,7 @@ export default async function handler(req, res) {
 
   await jitterDelay();
 
-  // L8: Build & deliver encrypted loader
+  // L8: Build & deliver
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   return res.status(200).end(buildLoader(entry.url));
 }
