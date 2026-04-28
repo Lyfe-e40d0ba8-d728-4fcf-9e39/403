@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  FLYCER SCRIPTS ENGINE v10.0 — Universal XOR-Only
+//  FLYCER SCRIPTS ENGINE v10.1 — Universal XOR-Only
 //  Compatible: ALL executors (mobile + PC, Lua 5.1 / Luau)
 //
 //  loadstring(game:HttpGet("https://flycer.my.id/loaders/v2/kyoukara"))()
@@ -110,20 +110,16 @@ function randomHex(n = 16) {
   return crypto.randomBytes(n).toString("hex");
 }
 
-// ── Server-side AES transform (internal obfuscation, not sent to client) ─
-
 function serverAesTransform(plaintext) {
   const key = crypto.createHash("sha256").update(CONFIG.secrets.aesKey).digest();
   const iv  = crypto.randomBytes(16);
 
-  // Encrypt
   const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
   const encrypted = Buffer.concat([
     cipher.update(Buffer.from(plaintext, "utf8")),
     cipher.final(),
   ]);
 
-  // Immediately decrypt (AES is server-side transform only)
   const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
   const decrypted = Buffer.concat([
     decipher.update(encrypted),
@@ -133,14 +129,11 @@ function serverAesTransform(plaintext) {
   return decrypted.toString("utf8");
 }
 
-// ── XOR encrypt for client (Lua-compatible) ──────────────────────────────
-
 function xorEncryptForClient(plaintext) {
   const key      = Array.from(crypto.randomBytes(16));
   const bytes    = Array.from(Buffer.from(plaintext, "utf8"));
   const xored    = bytes.map((b, i) => b ^ key[i % key.length]);
 
-  // Split key into 2 halves (extra obfuscation)
   const keyHalf1 = key.slice(0, 8);
   const keyHalf2 = key.slice(8, 16);
 
@@ -159,50 +152,28 @@ function luaVar() {
 
 // ══════════════════════════════════════════════════════════════════════════
 //  LUA LOADER BUILDER — UNIVERSAL XOR-ONLY
-//
-//  ✅ NO ~ operator         (uses arithmetic XOR via math.floor)
-//  ✅ NO // operator        (uses math.floor(a/b))
-//  ✅ NO bit32 library      (pure arithmetic)
-//  ✅ NO external library   (self-contained)
-//  ✅ Compatible: Lua 5.1, Luau, ALL executors
-//
-//  Every request produces a UNIQUE script:
-//  ✓ Different XOR keys (random per request)
-//  ✓ Different variable names (random per request)
-//  ✓ Different junk comments (random per request)
-//  ✓ No readable URL anywhere in the script
-//  ✓ Key split into 2 halves (harder to extract)
-//
-//  Client flow:
-//  Reassemble key → XOR decrypt → URL string → HttpGet → loadstring
 // ══════════════════════════════════════════════════════════════════════════
 
 function buildLoader(loaderUrl) {
-
-  // Server-side AES transform (internal obfuscation)
   const transformed = serverAesTransform(loaderUrl);
-
-  // XOR encrypt for client delivery
   const { xored, keyHalf1, keyHalf2 } = xorEncryptForClient(transformed);
 
-  // Random variable names — unique every request
   const v = {
-    d:    luaVar(),   // xorData array
-    k1:   luaVar(),   // key half 1
-    k2:   luaVar(),   // key half 2
-    k:    luaVar(),   // reassembled full key
-    xfn:  luaVar(),   // xor function
-    bfn:  luaVar(),   // byte-to-string function
-    url:  luaVar(),   // decrypted url
-    hg:   luaVar(),   // HttpGet ref
-    ok:   luaVar(),   // pcall success
-    src:  luaVar(),   // fetched source
-    fn:   luaVar(),   // loadstring result
-    t0:   luaVar(),   // tick start
-    spy:  luaVar(),   // anti-spy flag
+    d:    luaVar(),
+    k1:   luaVar(),
+    k2:   luaVar(),
+    k:    luaVar(),
+    xfn:  luaVar(),
+    bfn:  luaVar(),
+    url:  luaVar(),
+    hg:   luaVar(),
+    ok:   luaVar(),
+    src:  luaVar(),
+    fn:   luaVar(),
+    t0:   luaVar(),
+    spy:  luaVar(),
   };
 
-  // Junk comments — unique hash every request
   const j = () => `--[[${randomHex(6)}]]`;
 
   return `${j()}
@@ -285,6 +256,14 @@ ${v.src}=nil
 if type(${v.fn})~="function" then
 return
 end
+${v.fn}()
+${v.fn}=nil
+${v.t0}=nil
+pcall(function()
+local ok,_=pcall(collectgarbage,"collect")
+if not ok then pcall(gcinfo) end
+end)
+${j()}`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -320,7 +299,7 @@ function scoreSuspicion(req) {
   for (const { header, score: s } of penaltyHeaders) {
     if (req.headers[header] !== undefined) score += s;
   }
-  retrn score;
+  return score;
 }
 
 function checkRateLimit(ip) {
@@ -485,24 +464,20 @@ function sendBlocked(res) {
 export default async function handler(req, res) {
   applyBaseHeaders(res);
 
-  // L1: Browser → blocked page
   if (isBrowserRequest(req)) return sendBlocked(res);
 
-  // L2: Method guard
   if (!["GET", "HEAD"].includes(req.method)) {
     res.setHeader("Allow", "GET, HEAD");
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(405).end("-- method not allowed");
   }
 
-  // L3: Suspicion
   if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
     await jitterDelay();
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(200).end("-- error");
   }
 
-  // L4: Rate limit
   const ip = getClientIp(req);
   const rl = checkRateLimit(ip);
   if (rl.limited) {
@@ -511,27 +486,23 @@ export default async function handler(req, res) {
     return res.status(429).end("-- rate limited");
   }
 
-  // L5: Route parse
   const key = parseRoute(req);
   if (!key) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(404).end("-- not found");
   }
 
-  // L6: Registry lookup
   const entry = LOADERS[key];
   if (!entry) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(404).end("-- loader not found");
   }
 
-  // L7: Active check
   if (entry.active === false) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(403).end("-- loader disabled");
   }
 
-  // HEAD
   if (req.method === "HEAD") {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(200).end();
@@ -539,7 +510,6 @@ export default async function handler(req, res) {
 
   await jitterDelay();
 
-  // L8: Build & deliver
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   return res.status(200).end(buildLoader(entry.url));
 }
