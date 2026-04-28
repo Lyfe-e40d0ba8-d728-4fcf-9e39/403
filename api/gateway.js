@@ -16,9 +16,9 @@ const CONFIG = {
   // ── Secrets — GANTI sebelum deploy! ──────────────────────────────────
   secrets: {
     // HMAC signing key (min 32 chars)
-    hmacKey: "f7x2!kLqP#9mVnRt@WdYc8JzUeAsBh3G",
+    hmacKey: "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
     // AES-256 encryption key (EXACTLY 32 chars)
-    aesKey:  "Fy$3rK8m!Qp2Wx9ZbN6vTjL0sDcUhYeA",
+    aesKey:  "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",
   },
 
   // ── Loader URL ────────────────────────────────────────────────────────
