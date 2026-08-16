@@ -24,9 +24,9 @@ export const LOADERS = {
     note:   "Script milik Maxwell - RobeatsRevamp",
   },
 
-  "v3/premium": {
-    url:    "https://raw.githubusercontent.com/user/repo/main/premium.lua",
-    active: false,
+  "v2/premium": {
+    url:    "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/main/Test",
+    active: true,
     note:   "Premium script (inactive - placeholder)",
   },
 
