@@ -1,7 +1,16 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  FLYCER SCRIPTS ENGINE v10.4 — Delta-Safe Build
-//  Fix: hookfunction kill, GC crash, global nil assign crash
-//  Compatible: Delta, Arceus X, Fluxus, KRNL, Hydrogen, Codex
+//  FLYCER SCRIPTS ENGINE v11.0
+//  Security  : Base64 + XOR + Substitution Cipher (3-layer)
+//  Stability : Zero hookfunction, zero GC, zero global mutation
+//  Weight    : Lightweight — no heavy math, no AES in Lua
+//  Universal : Delta, Arceus X, Fluxus, Wave, Solara, Hydrogen,
+//              Codex, Synapse X, KRNL, Xeno, and most mobile executors
+//
+//  Encrypt flow (server):
+//    URL → Base64 → XOR(key_A) → Substitution(key_B) → array angka
+//
+//  Decrypt flow (client Lua):
+//    array angka → InvSubstitution(key_B) → XOR(key_A) → Base64 decode → URL
 // ══════════════════════════════════════════════════════════════════════════
 
 import crypto from "crypto";
@@ -13,11 +22,11 @@ import { LOADERS } from "./loader.js";
 
 const CONFIG = {
   rateLimit: {
-    windowMs: 60_000,
+    windowMs:    60_000,
     maxRequests: 12,
   },
   suspicion: { blockScore: 12 },
-  jitter: { minMs: 35, maxMs: 110 },
+  jitter:    { minMs: 35, maxMs: 110 },
 
   page: {
     title: "Access Denied | Flycer Developments",
@@ -40,7 +49,7 @@ const CONFIG = {
   fonts: {
     body: "'Inter', sans-serif",
     mono: "'JetBrains Mono', monospace",
-    url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
+    url:  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
   },
   tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
 
@@ -96,132 +105,291 @@ function randomHex(n = 10) {
   return crypto.randomBytes(n).toString("hex");
 }
 
-function xorEncrypt(plaintext) {
-  const key   = Array.from(crypto.randomBytes(16));
-  const bytes = Array.from(Buffer.from(plaintext, "utf8"));
-  const xored = bytes.map((b, i) => b ^ key[i % key.length]);
-  return { xored, key };
+function randomBytes(n) {
+  return Array.from(crypto.randomBytes(n));
 }
 
+// ── Layer 1: Base64 encode ────────────────────────────────────────────────
+function toBase64Bytes(str) {
+  // Encode string ke Base64 lalu ambil byte-nya
+  const b64 = Buffer.from(str, "utf8").toString("base64");
+  return Array.from(Buffer.from(b64, "utf8"));
+}
+
+// ── Layer 2: XOR dengan key acak 16 byte ─────────────────────────────────
+function xorEncrypt(bytes, key) {
+  return bytes.map((b, i) => b ^ key[i % key.length]);
+}
+
+// ── Layer 3: Substitution cipher ─────────────────────────────────────────
+// Buat tabel substitusi acak untuk 256 nilai byte
+// Forward: plainByte → cipherByte
+// Inverse: cipherByte → plainByte  (untuk decrypt di Lua)
+function buildSubTable() {
+  // Fisher-Yates shuffle pada 0-255
+  const tbl = Array.from({ length: 256 }, (_, i) => i);
+  for (let i = 255; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    [tbl[i], tbl[j]] = [tbl[j], tbl[i]];
+  }
+  // inverse table
+  const inv = new Array(256);
+  tbl.forEach((v, k) => { inv[v] = k; });
+  return { fwd: tbl, inv };
+}
+
+function subEncrypt(bytes, fwdTable) {
+  return bytes.map(b => fwdTable[b]);
+}
+
+// ── Full 3-layer encrypt ──────────────────────────────────────────────────
+function encryptUrl(url) {
+  const xorKey        = randomBytes(16);
+  const { fwd, inv }  = buildSubTable();
+
+  const layer1 = toBase64Bytes(url);       // Base64 bytes
+  const layer2 = xorEncrypt(layer1, xorKey); // XOR
+  const layer3 = subEncrypt(layer2, fwd);    // Substitution
+
+  return {
+    data:    layer3,   // Final encrypted byte array
+    xorKey,            // 16-byte XOR key
+    invSub:  inv,      // 256-byte inverse sub table (untuk Lua decode)
+  };
+}
+
+// ── Lua variable name generator ───────────────────────────────────────────
 function luaVar() {
-  const chars = "abcdefghijklmnopqrstuvwxyz";
-  const l     = chars[Math.floor(Math.random() * 26)];
-  const hex   = crypto.randomBytes(3).toString("hex");
-  return `_${l}${hex}`;
+  const alpha = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const l     = alpha[Math.floor(Math.random() * 26)]; // selalu lowercase awal
+  return `_${l}${crypto.randomBytes(4).toString("hex")}`;
+}
+
+// ── Junk comment ──────────────────────────────────────────────────────────
+function j() {
+  return `--[[${randomHex(6)}]]`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  LUA LOADER BUILDER — DELTA SAFE v10.4
+//  LUA BASE64 DECODE (Pure Lua, Lua 5.1 + Luau compatible)
+//  Self-contained, no external library, no bit32
+// ══════════════════════════════════════════════════════════════════════════
+
+function getLuaBase64() {
+  return `local function _b64d(s)
+local b="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local t={}
+for i=1,#b do t[b:sub(i,i)]=i-1 end
+local r={}
+local buf=0
+local bits=0
+for i=1,#s do
+local c=s:sub(i,i)
+if c~="=" then
+local v=t[c]
+if v then
+buf=buf*64+v
+bits=bits+6
+if bits>=8 then
+bits=bits-8
+r[#r+1]=string.char(math.floor(buf/2^bits)%256)
+buf=buf%(2^bits)
+end
+end
+end
+end
+return table.concat(r)
+end`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  LUA LOADER BUILDER v11
 //
-//  PERUBAHAN dari v10.3:
-//  [1] HAPUS hookfunction sepenuhnya → Delta kill proses saat terdeteksi
-//  [2] HAPUS setclipboard=nil / writefile=nil / readfile=nil
-//       → assign nil ke C-function global = crash di Delta
-//  [3] HAPUS collectgarbage manual
-//       → beberapa build Delta crash saat GC dipanggil dari Lua
-//  [4] XOR pakai lookup table string.byte trick
-//       → jauh lebih ringan, tidak ada loop math berat
-//  [5] Semua pcall hanya untuk HttpGet dan loadstring
-//  [6] Tidak ada global mutation apapun
+//  Client Decrypt Flow:
+//  [1] data[] → InvSubstitution(invSub[]) → xored[]
+//  [2] xored[] → XOR(xorKey[]) → base64 bytes → base64 string
+//  [3] base64 string → base64 decode → URL string
+//  [4] URL → HttpGet → loadstring → execute
+//
+//  RULES (Delta-safe, Universal):
+//  ✅ Zero hookfunction
+//  ✅ Zero collectgarbage manual
+//  ✅ Zero global = nil assignment
+//  ✅ Zero bit32 / ~ operator / // operator
+//  ✅ Zero heavy math loop
+//  ✅ All operations inside local scope
+//  ✅ pcall only on HttpGet dan loadstring
 // ══════════════════════════════════════════════════════════════════════════
 
 function buildLoader(loaderUrl) {
-  // Encrypt URL dengan XOR
-  const { xored, key } = xorEncrypt(loaderUrl);
+  const { data, xorKey, invSub } = encryptUrl(loaderUrl);
 
-  // Split key jadi 3 bagian untuk mempersulit reverse
-  // (tidak ada overhead Lua, hanya untuk mempersulit static analysis)
-  const k1 = key.slice(0, 5);
-  const k2 = key.slice(5, 11);
-  const k3 = key.slice(11, 16);
+  // Split invSub table jadi beberapa bagian
+  // agar tidak ada 1 array 256 elemen yang obvious
+  const sub1 = invSub.slice(0, 64);
+  const sub2 = invSub.slice(64, 128);
+  const sub3 = invSub.slice(128, 192);
+  const sub4 = invSub.slice(192, 256);
 
-  // Split data juga jadi 3 chunk
-  const chunkSize = Math.ceil(xored.length / 3);
-  const d1 = xored.slice(0, chunkSize);
-  const d2 = xored.slice(chunkSize, chunkSize * 2);
-  const d3 = xored.slice(chunkSize * 2);
+  // Split xorKey jadi 2 bagian
+  const xk1 = xorKey.slice(0, 8);
+  const xk2 = xorKey.slice(8, 16);
 
-  // Random variable names
+  // Split data jadi beberapa chunk (max 40 elemen per chunk)
+  // Ini menghindari array raksasa satu baris yang obvious
+  const chunks   = [];
+  const chunkSz  = 40;
+  for (let i = 0; i < data.length; i += chunkSz) {
+    chunks.push(data.slice(i, i + chunkSz));
+  }
+
+  // ── Variable names ──
   const v = {
-    k1:  luaVar(), k2: luaVar(), k3: luaVar(),
-    d1:  luaVar(), d2: luaVar(), d3: luaVar(),
-    key: luaVar(), dat: luaVar(),
-    dec: luaVar(), url: luaVar(),
-    hg:  luaVar(), ok: luaVar(),
-    src: luaVar(), fn: luaVar(),
-    i:   luaVar(), r:  luaVar(),
+    // Sub table parts
+    s1: luaVar(), s2: luaVar(), s3: luaVar(), s4: luaVar(),
+    st: luaVar(), // full sub table
+    // XOR key parts
+    xk1: luaVar(), xk2: luaVar(),
+    xk:  luaVar(), // full xor key
+    // Data chunks (generated below)
+    chunks: chunks.map(() => luaVar()),
+    dat:  luaVar(), // full data array
+    // Working vars
+    idx:  luaVar(),
+    tmp:  luaVar(),
+    res:  luaVar(),
+    url:  luaVar(),
+    hg:   luaVar(),
+    ok:   luaVar(),
+    src:  luaVar(),
+    fn:   luaVar(),
   };
 
-  const j = () => `--[[${randomHex(4)}]]`;
+  // ── Build Lua script ──
+  const lines = [];
 
-  // Catatan: TIDAK ADA hookfunction, TIDAK ADA GC manual,
-  // TIDAK ADA global = nil assignment
-  return `${j()}
-local ${v.k1}={${k1.join(",")}}
-local ${v.k2}={${k2.join(",")}}
-local ${v.k3}={${k3.join(",")}}
-local ${v.d1}={${d1.join(",")}}
-local ${v.d2}={${d2.join(",")}}
-local ${v.d3}={${d3.join(",")}}
-${j()}
-local ${v.key}={}
-for ${v.i}=1,#${v.k1} do ${v.key}[${v.i}]=${v.k1}[${v.i}] end
-for ${v.i}=1,#${v.k2} do ${v.key}[#${v.k1}+${v.i}]=${v.k2}[${v.i}] end
-for ${v.i}=1,#${v.k3} do ${v.key}[#${v.k1}+#${v.k2}+${v.i}]=${v.k3}[${v.i}] end
-${v.k1}=nil ${v.k2}=nil ${v.k3}=nil
-${j()}
-local ${v.dat}={}
-local ${v.i}=0
-for _,b in ipairs(${v.d1}) do ${v.i}=${v.i}+1;${v.dat}[${v.i}]=b end
-for _,b in ipairs(${v.d2}) do ${v.i}=${v.i}+1;${v.dat}[${v.i}]=b end
-for _,b in ipairs(${v.d3}) do ${v.i}=${v.i}+1;${v.dat}[${v.i}]=b end
-${v.d1}=nil ${v.d2}=nil ${v.d3}=nil
-${j()}
-local ${v.dec}=function(data,key)
-  local ${v.r}={}
-  local klen=#key
-  for idx=1,#data do
-    local a=data[idx]
-    local b=key[((idx-1)%klen)+1]
-    local res=0
-    local pow=1
-    while a>0 or b>0 do
-      if a%2~=b%2 then res=res+pow end
-      a=math.floor(a*0.5)
-      b=math.floor(b*0.5)
-      pow=pow*2
-    end
-    ${v.r}[idx]=string.char(res)
-  end
-  return table.concat(${v.r})
-end
-${j()}
-local ${v.url}=${v.dec}(${v.dat},${v.key})
-${v.dat}=nil
-${v.key}=nil
-${v.dec}=nil
-if type(${v.url})~="string" or #${v.url}<8 then
-  ${v.url}=nil
-  return
-end
-${j()}
-local ${v.hg}=game.HttpGet
-local ${v.ok},${v.src}=pcall(function()
-  return ${v.hg}(game,${v.url})
-end)
-${v.url}=nil
-${v.hg}=nil
-if not ${v.ok} then return end
-if type(${v.src})~="string" or #${v.src}<10 then
-  ${v.src}=nil
-  return
-end
-${j()}
-local ${v.fn}=loadstring(${v.src})
-${v.src}=nil
-if type(${v.fn})~="function" then return end
-${v.fn}()
-${j()}`;
+  lines.push(j());
+
+  // ── Part 1: Substitution table assembly ──
+  lines.push(`local ${v.s1}={${sub1.join(",")}}`);
+  lines.push(`local ${v.s2}={${sub2.join(",")}}`);
+  lines.push(`local ${v.s3}={${sub3.join(",")}}`);
+  lines.push(`local ${v.s4}={${sub4.join(",")}}`);
+  lines.push(j());
+
+  // Gabung jadi satu table
+  lines.push(`local ${v.st}={}`);
+  lines.push(`for ${v.idx}=1,#${v.s1} do ${v.st}[${v.idx}]=${v.s1}[${v.idx}] end`);
+  lines.push(`for ${v.idx}=1,#${v.s2} do ${v.st}[64+${v.idx}]=${v.s2}[${v.idx}] end`);
+  lines.push(`for ${v.idx}=1,#${v.s3} do ${v.st}[128+${v.idx}]=${v.s3}[${v.idx}] end`);
+  lines.push(`for ${v.idx}=1,#${v.s4} do ${v.st}[192+${v.idx}]=${v.s4}[${v.idx}] end`);
+  // Hapus parts
+  lines.push(`${v.s1}=nil ${v.s2}=nil ${v.s3}=nil ${v.s4}=nil`);
+  lines.push(j());
+
+  // ── Part 2: XOR key assembly ──
+  lines.push(`local ${v.xk1}={${xk1.join(",")}}`);
+  lines.push(`local ${v.xk2}={${xk2.join(",")}}`);
+  lines.push(`local ${v.xk}={}`);
+  lines.push(`for ${v.idx}=1,8 do ${v.xk}[${v.idx}]=${v.xk1}[${v.idx}] end`);
+  lines.push(`for ${v.idx}=1,8 do ${v.xk}[8+${v.idx}]=${v.xk2}[${v.idx}] end`);
+  lines.push(`${v.xk1}=nil ${v.xk2}=nil`);
+  lines.push(j());
+
+  // ── Part 3: Data chunks ──
+  chunks.forEach((chunk, ci) => {
+    lines.push(`local ${v.chunks[ci]}={${chunk.join(",")}}`);
+  });
+  lines.push(j());
+
+  // Gabung semua chunk
+  lines.push(`local ${v.dat}={}`);
+  lines.push(`local ${v.idx}=0`);
+  chunks.forEach((_, ci) => {
+    lines.push(`for _,b in ipairs(${v.chunks[ci]}) do ${v.idx}=${v.idx}+1;${v.dat}[${v.idx}]=b end`);
+    lines.push(`${v.chunks[ci]}=nil`);
+  });
+  lines.push(j());
+
+  // ── Part 4: Decrypt ──
+  // Step A: InvSub
+  lines.push(`local ${v.tmp}={}`);
+  lines.push(`for ${v.idx}=1,#${v.dat} do`);
+  lines.push(`  local b=${v.dat}[${v.idx}]`);
+  lines.push(`  ${v.tmp}[${v.idx}]=${v.st}[b+1]`);  // +1 karena Lua 1-indexed
+  lines.push(`end`);
+  lines.push(`${v.dat}=nil`);
+  lines.push(`${v.st}=nil`);
+  lines.push(j());
+
+  // Step B: XOR decode
+  lines.push(`local ${v.res}={}`);
+  lines.push(`local klen=#${v.xk}`);
+  lines.push(`for ${v.idx}=1,#${v.tmp} do`);
+  lines.push(`  local a=${v.tmp}[${v.idx}]`);
+  lines.push(`  local b=${v.xk}[((${v.idx}-1)%klen)+1]`);
+  // XOR tanpa ~ operator, tanpa bit32, tanpa math.floor berat
+  lines.push(`  local r=0`);
+  lines.push(`  local p=1`);
+  lines.push(`  local aa=a`);
+  lines.push(`  local bb=b`);
+  lines.push(`  while aa>0 or bb>0 do`);
+  lines.push(`    if aa%2~=bb%2 then r=r+p end`);
+  lines.push(`    aa=aa-aa%2`);   // aa = floor(aa/1)*1 trick (ringan)
+  lines.push(`    bb=bb-bb%2`);
+  lines.push(`    aa=aa/2`);
+  lines.push(`    bb=bb/2`);
+  lines.push(`    p=p*2`);
+  lines.push(`  end`);
+  lines.push(`  ${v.res}[${v.idx}]=string.char(r)`);
+  lines.push(`end`);
+  lines.push(`${v.tmp}=nil`);
+  lines.push(`${v.xk}=nil`);
+  lines.push(j());
+
+  // Step C: Gabung chars → base64 string
+  lines.push(`local b64str=table.concat(${v.res})`);
+  lines.push(`${v.res}=nil`);
+  lines.push(j());
+
+  // Step D: Base64 decode → URL
+  lines.push(getLuaBase64());
+  lines.push(j());
+  lines.push(`local ${v.url}=_b64d(b64str)`);
+  lines.push(`_b64d=nil`);
+  lines.push(`b64str=nil`);
+  lines.push(j());
+
+  // ── Part 5: Validate & Execute ──
+  lines.push(`if type(${v.url})~="string" or #${v.url}<8 then`);
+  lines.push(`  ${v.url}=nil`);
+  lines.push(`  return`);
+  lines.push(`end`);
+  lines.push(j());
+
+  lines.push(`local ${v.hg}=game.HttpGet`);
+  lines.push(`local ${v.ok},${v.src}=pcall(function()`);
+  lines.push(`  return ${v.hg}(game,${v.url})`);
+  lines.push(`end)`);
+  lines.push(`${v.url}=nil`);
+  lines.push(`${v.hg}=nil`);
+  lines.push(j());
+
+  lines.push(`if not ${v.ok} then return end`);
+  lines.push(`if type(${v.src})~="string" or #${v.src}<10 then`);
+  lines.push(`  ${v.src}=nil`);
+  lines.push(`  return`);
+  lines.push(`end`);
+  lines.push(j());
+
+  lines.push(`local ${v.fn}=loadstring(${v.src})`);
+  lines.push(`${v.src}=nil`);
+  lines.push(`if type(${v.fn})~="function" then return end`);
+  lines.push(`${v.fn}()`);
+  lines.push(`${v.fn}=nil`);
+  lines.push(j());
+
+  return lines.join("\n");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -397,9 +565,9 @@ function parseRoute(req) {
   if (m2 && !m2[1].startsWith("api/")) return m2[1];
 
   try {
-    const url     = new URL(path, "http://localhost");
-    const version = url.searchParams.get("version");
-    const name    = url.searchParams.get("name");
+    const u       = new URL(path, "http://localhost");
+    const version = u.searchParams.get("version");
+    const name    = u.searchParams.get("name");
     if (version && name) return `${version}/${name}`;
   } catch {}
 
@@ -423,10 +591,10 @@ function sendBlocked(res) {
 export default async function handler(req, res) {
   applyBaseHeaders(res);
 
-  // L1: Browser → blocked page
+  // L1: Browser
   if (isBrowserRequest(req)) return sendBlocked(res);
 
-  // L2: Method guard
+  // L2: Method
   if (!["GET", "HEAD"].includes(req.method)) {
     res.setHeader("Allow", "GET, HEAD");
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -449,21 +617,21 @@ export default async function handler(req, res) {
     return res.status(429).end("-- rate limited");
   }
 
-  // L5: Route → loader key
+  // L5: Route
   const key = parseRoute(req);
   if (!key) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(404).end("-- not found");
   }
 
-  // L6: Lookup registry
+  // L6: Registry lookup
   const entry = LOADERS[key];
   if (!entry) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(404).end("-- loader not found");
   }
 
-  // L7: Active check
+  // L7: Active
   if (entry.active === false) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(403).end("-- loader disabled");
@@ -477,7 +645,7 @@ export default async function handler(req, res) {
 
   await jitterDelay();
 
-  // L9: Build & deliver
+  // L9: Deliver
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   return res.status(200).end(buildLoader(entry.url));
 }
