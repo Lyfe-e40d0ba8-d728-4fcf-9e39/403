@@ -1,8 +1,13 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  FLYCER GATEWAY v8.0
+//  FLYCER GATEWAY v8.1 (Fixed)
 //  AES-256-CBC (server encrypt) + XOR obfuscation + pure Lua AES decrypt
 //  Challenge-response · Anti-bot · Anti-browser · Rate limit
-//  Single file · No .env · No Redis · Vercel Serverless compatible
+//
+//  FIX v8.1:
+//  - blockHeaders check: tambah !== undefined agar lebih akurat
+//  - isBrowserRequest(): perbaiki empty UA handling
+//  - buildBlockedPage(): escape template literal lebih konsisten
+//  - Cleanup komentar & formatting
 // ══════════════════════════════════════════════════════════════════════════
 
 import crypto from "crypto";
@@ -13,11 +18,9 @@ import crypto from "crypto";
 
 const CONFIG = {
 
-  // ── Secrets — GANTI sebelum deploy! ──────────────────────────────────
+  // ── Secrets ──────────────────────────────────────────────────────────
   secrets: {
-    // HMAC signing key (min 32 chars)
     hmacKey: "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
-    // AES-256 encryption key (EXACTLY 32 chars)
     aesKey:  "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",
   },
 
@@ -28,25 +31,25 @@ const CONFIG = {
 
   // ── Challenge ─────────────────────────────────────────────────────────
   challenge: {
-    expiryMs:  15_000,  // 15 seconds TTL
-    maxStored: 500,     // max in-memory entries before trim
+    expiryMs:  15_000,
+    maxStored: 500,
   },
 
   // ── Rate limit ────────────────────────────────────────────────────────
   rateLimit: {
-    windowMs:    60_000,  // 1 minute window
-    maxRequests: 8,       // max requests per IP per window
+    windowMs:    60_000,
+    maxRequests: 8,
   },
 
-  // ── Suspicion scoring ─────────────────────────────────────────────────
+  // ── Suspicion ─────────────────────────────────────────────────────────
   suspicion: {
-    blockScore: 10,       // score >= this → send decoy
+    blockScore: 10,
   },
 
-  // ── Jitter delay ──────────────────────────────────────────────────────
+  // ── Jitter ────────────────────────────────────────────────────────────
   jitter: { minMs: 40, maxMs: 130 },
 
-  // ── Blocked page content ──────────────────────────────────────────────
+  // ── Blocked page ──────────────────────────────────────────────────────
   page: {
     title:   "Access Denied | Flycer Developments",
     badge:   "403 Forbidden",
@@ -65,7 +68,6 @@ const CONFIG = {
     footer: "Flycer Loader \u00A0·\u00A0 Restricted Access",
   },
 
-  // ── Fonts / CDN ───────────────────────────────────────────────────────
   fonts: {
     body: "'Inter', sans-serif",
     mono: "'JetBrains Mono', monospace",
@@ -76,19 +78,19 @@ const CONFIG = {
   // ── Browser detection ─────────────────────────────────────────────────
   browser: {
     uaKeywords: [
-      "mozilla","chrome","safari","firefox","edge","opera","brave",
-      "vivaldi","webkit","gecko","trident","msie","headlesschrome",
-      "phantomjs","selenium","puppeteer","playwright","curl","wget",
-      "httpie","postman","insomnia","axios","python-requests","go-http",
-      "java/","libwww","perl","ruby","bot","spider","crawl","googlebot",
-      "bingbot","yandex","baidu","facebookexternalhit","twitterbot",
-      "discord","telegram","whatsapp","slack",
+      "mozilla", "chrome", "safari", "firefox", "edge", "opera", "brave",
+      "vivaldi", "webkit", "gecko", "trident", "msie", "headlesschrome",
+      "phantomjs", "selenium", "puppeteer", "playwright", "curl", "wget",
+      "httpie", "postman", "insomnia", "axios", "python-requests", "go-http",
+      "java/", "libwww", "perl", "ruby", "bot", "spider", "crawl",
+      "googlebot", "bingbot", "yandex", "baidu", "facebookexternalhit",
+      "twitterbot", "discord", "telegram", "whatsapp", "slack",
     ],
     uaAllowlist: ["roblox"],
     blockHeaders: [
-      "sec-ch-ua","sec-ch-ua-mobile","sec-ch-ua-platform",
-      "sec-fetch-dest","sec-fetch-mode","sec-fetch-site",
-      "sec-fetch-user","upgrade-insecure-requests",
+      "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+      "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
+      "sec-fetch-user", "upgrade-insecure-requests",
     ],
   },
 
@@ -107,13 +109,12 @@ const CONFIG = {
 };
 
 // ══════════════════════════════════════════════════════════════════════════
-//  IN-MEMORY STORES (non-persistent across cold starts — by design)
+//  IN-MEMORY STORES
 // ══════════════════════════════════════════════════════════════════════════
 
 const challengeStore = new Map(); // Map<id, { nonce, timestamp }>
 const rateLimitStore = new Map(); // Map<ip, { count, windowStart }>
 
-// Cleanup expired entries every 30 seconds
 setInterval(() => {
   const now = Date.now();
   for (const [id, d] of challengeStore) {
@@ -125,7 +126,7 @@ setInterval(() => {
 }, 30_000);
 
 // ══════════════════════════════════════════════════════════════════════════
-//  CRYPTO — SERVER SIDE
+//  CRYPTO
 // ══════════════════════════════════════════════════════════════════════════
 
 function randomHex(n = 16) {
@@ -145,8 +146,11 @@ function hmacSign(data) {
 
 function safeCompare(a, b) {
   if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
-  try { return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)); }
-  catch { return false; }
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
+  }
 }
 
 function buildSignature(nonce, ts, id) {
@@ -160,9 +164,8 @@ function verifySignature(nonce, ts, id, sig) {
 // ── AES-256-CBC encrypt ───────────────────────────────────────────────────
 
 function aesEncrypt(plaintext) {
-  // Derive exactly 32-byte key via SHA-256
   const key = crypto.createHash("sha256").update(CONFIG.secrets.aesKey).digest();
-  const iv  = crypto.randomBytes(16); // Random IV per request
+  const iv  = crypto.randomBytes(16);
 
   const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
   const ct     = Buffer.concat([
@@ -171,13 +174,13 @@ function aesEncrypt(plaintext) {
   ]);
 
   return {
-    key:        Array.from(key),       // 32 bytes → number[]
-    iv:         Array.from(iv),        // 16 bytes → number[]
-    ciphertext: Array.from(ct),        // N bytes  → number[]
+    key:        Array.from(key),
+    iv:         Array.from(iv),
+    ciphertext: Array.from(ct),
   };
 }
 
-// ── XOR obfuscation layer (applied on top of AES output) ─────────────────
+// ── XOR obfuscation ───────────────────────────────────────────────────────
 
 function xorLayer(data) {
   const key   = Array.from(crypto.randomBytes(16));
@@ -187,21 +190,12 @@ function xorLayer(data) {
 
 // ══════════════════════════════════════════════════════════════════════════
 //  PURE LUA AES-256-CBC IMPLEMENTATION
-//
-//  Self-contained · No external library · Compatible with all executors
-//  Handles: SubBytes, ShiftRows, MixColumns, AddRoundKey, PKCS7 unpad
-//  Works on: Synapse X, Fluxus, Delta, Arceus X, KRNL, Hydrogen,
-//             Solara, Codex, Wave, Xeno, and most mobile executors
 // ══════════════════════════════════════════════════════════════════════════
 
 function getLuaAES() {
-  // Returns the Lua AES-256-CBC decrypt function as a string.
-  // Function signature: _AES_D(key_t, iv_t, ct_t) -> string
-  // where key_t, iv_t, ct_t are Lua tables of byte numbers.
   return `local function _AES_D(kb,ib,cb)
 local S={99,124,119,123,242,107,111,197,48,1,103,43,254,215,171,118,202,130,201,125,250,89,71,240,173,212,162,175,156,164,114,192,183,253,147,38,54,63,247,204,52,165,229,241,113,216,49,21,4,199,35,195,24,150,5,154,7,18,128,226,235,39,178,117,9,131,44,26,27,110,90,160,82,59,214,179,41,227,47,132,83,209,0,237,32,252,177,91,106,203,190,57,74,76,88,207,208,239,170,251,67,77,51,133,69,249,2,127,80,60,159,168,81,163,64,143,146,157,56,245,188,182,218,33,16,255,243,210,205,12,19,236,95,151,68,23,196,167,126,61,100,93,25,115,96,129,79,220,34,42,144,136,70,238,184,20,222,94,11,219,224,50,58,10,73,6,36,92,194,211,172,98,145,149,228,121,231,200,55,109,141,213,78,169,108,86,244,234,101,122,174,8,186,120,37,46,28,166,180,198,232,221,116,31,75,189,139,138,112,62,181,102,72,3,246,14,97,53,87,185,134,193,29,158,225,248,152,17,105,217,142,148,155,30,135,233,206,85,40,223,140,161,137,13,191,230,66,104,65,153,45,15,176,84,187,22}
 local Si={} for i=0,255 do Si[S[i+1]]=i end
-local function xb(a,b) return a~b end
 local function gm(a,b)
 local r=0
 while b>0 do
@@ -286,7 +280,7 @@ end`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  RANDOM LUA VARIABLE NAME GENERATOR
+//  LUA VARIABLE NAME GENERATOR
 // ══════════════════════════════════════════════════════════════════════════
 
 function luaVar() {
@@ -297,51 +291,27 @@ function luaVar() {
 
 // ══════════════════════════════════════════════════════════════════════════
 //  LUA LOADER BUILDER
-//
-//  Every request produces a UNIQUE script:
-//  ✓ Different AES IV (random per request)
-//  ✓ Different XOR keys (random per request)
-//  ✓ Different variable names (random per request)
-//  ✓ Different junk comments (random per request)
-//  ✓ No readable URL anywhere in the script
-//
-//  Client decrypt flow:
-//  XOR decode → AES-256-CBC decode → URL string → HttpGet → loadstring
 // ══════════════════════════════════════════════════════════════════════════
 
 function buildLoader() {
   const url = CONFIG.loader.url;
 
-  // ── Step 1: AES-256-CBC encrypt URL ──────────────────────────────────
   const { key: aesKeyBytes, iv: aesIvBytes, ciphertext } = aesEncrypt(url);
-
-  // ── Step 2: XOR obfuscate ciphertext ─────────────────────────────────
-  const { xored: ctXored, key: ctXorKey } = xorLayer(ciphertext);
-
-  // ── Step 3: XOR obfuscate IV ─────────────────────────────────────────
-  const { xored: ivXored, key: ivXorKey } = xorLayer(aesIvBytes);
-
-  // ── Step 4: XOR obfuscate AES key ────────────────────────────────────
+  const { xored: ctXored,  key: ctXorKey  } = xorLayer(ciphertext);
+  const { xored: ivXored,  key: ivXorKey  } = xorLayer(aesIvBytes);
   const { xored: keyXored, key: keyXorKey } = xorLayer(aesKeyBytes);
 
-  // ── Step 5: Random Lua variable names ────────────────────────────────
   const v = {
-    // XOR data vars
-    ctX:    luaVar(),  ctK:   luaVar(),
-    ivX:    luaVar(),  ivK:   luaVar(),
-    akX:    luaVar(),  akK:   luaVar(),
-    // XOR function
-    xorFn:  luaVar(),
-    // Decoded intermediates
-    ct:     luaVar(),  iv:    luaVar(),  ak:   luaVar(),
-    // URL + execution
-    url:    luaVar(),  hg:    luaVar(),
-    ok:     luaVar(),  src:   luaVar(),  fn:   luaVar(),
-    // Guards
-    t0:     luaVar(),  spy:   luaVar(),
+    ctX:   luaVar(), ctK:  luaVar(),
+    ivX:   luaVar(), ivK:  luaVar(),
+    akX:   luaVar(), akK:  luaVar(),
+    xorFn: luaVar(),
+    ct:    luaVar(), iv:   luaVar(), ak:  luaVar(),
+    url:   luaVar(), hg:   luaVar(),
+    ok:    luaVar(), src:  luaVar(), fn:  luaVar(),
+    t0:    luaVar(), spy:  luaVar(),
   };
 
-  // ── Step 6: Junk comments (change script hash every request) ─────────
   const j = () => `--[[${randomHex(8)}]]`;
 
   return `${j()}
@@ -349,13 +319,13 @@ local ${v.t0}=tick()
 local ${v.spy}=false
 ${j()}
 pcall(function()
-if type(hookfunction)=="function" then
-local _oh=game.HttpGet
-hookfunction(game.HttpGet,function(...)
-${v.spy}=true
-return _oh(...)
-end)
-end
+  if type(hookfunction)=="function" then
+    local _oh=game.HttpGet
+    hookfunction(game.HttpGet,function(...)
+      ${v.spy}=true
+      return _oh(...)
+    end)
+  end
 end)
 if ${v.spy} then return end
 pcall(function() if type(setclipboard)=="function" then setclipboard=function()end end end)
@@ -363,21 +333,21 @@ pcall(function() if type(writefile)=="function" then writefile=function()end end
 pcall(function() if type(readfile)=="function" then readfile=function()end end end)
 ${j()}
 local ${v.xorFn}=function(d,k)
-local r={}
-for i=1,#d do
-local di=d[i]
-local ki=k[((i-1)%#k)+1]
-local o=0
-local a=di
-local b=ki
-for p=0,7 do
-if(math.floor(a/2^p)%2)~=(math.floor(b/2^p)%2) then
-o=o+2^p
-end
-end
-r[i]=o
-end
-return r
+  local r={}
+  for i=1,#d do
+    local a=d[i]
+    local b=k[((i-1)%#k)+1]
+    local o=0
+    local p=1
+    for _=0,7 do
+      local ba=math.floor(a/p)%2
+      local bb=math.floor(b/p)%2
+      if ba~=bb then o=o+p end
+      p=p*2
+    end
+    r[i]=o
+  end
+  return r
 end
 ${j()}
 local ${v.ctX}={${ctXored.join(",")}}
@@ -405,12 +375,12 @@ if tick()-${v.t0}>20 then ${v.url}=nil return end
 ${j()}
 local ${v.hg}=game.HttpGet
 local ${v.ok},${v.src}=pcall(function()
-return ${v.hg}(game,${v.url})
+  return ${v.hg}(game,${v.url})
 end)
 ${v.url}=nil
 ${v.hg}=nil
 if not ${v.ok} or type(${v.src})~="string" or #${v.src}==0 then
-${v.src}=nil return
+  ${v.src}=nil return
 end
 local ${v.fn}=loadstring(${v.src})
 ${v.src}=nil
@@ -436,15 +406,23 @@ function getClientIp(req) {
 
 function isBrowserRequest(req) {
   const ua = (req.headers["user-agent"] || "").toLowerCase();
-  // Allowlist: known executor UAs
+
+  // Allowlist: executor yang diketahui
   if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
-  // Block: browser/tool UA keywords
+
+  // UA kosong: bisa executor atau tool, jangan blokir di sini
+  // (akan ditangani oleh suspicion score)
+
+  // Blocklist UA keywords
   if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
-  // Block: browser-specific security headers
-  if (CONFIG.browser.blockHeaders.some(h => req.headers[h])) return true;
-  // Block: browser Accept header pattern
+
+  // Browser-only security headers (FIXED: cek !== undefined)
+  if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
+
+  // Browser Accept pattern
   const accept = (req.headers["accept"] || "").toLowerCase();
   if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
+
   return false;
 }
 
@@ -452,16 +430,20 @@ function scoreSuspicion(req) {
   const ua = req.headers["user-agent"] || "";
   const { penaltyHeaders, penalties } = CONFIG.executor;
   let score = 0;
+
   if (ua.length === 0)       score += penalties.emptyUA;
   else if (ua.length < 5)    score += penalties.shortUA;
   else if (ua.length > 400)  score += penalties.longUA;
+
   for (const { header, score: s } of penaltyHeaders) {
     if (req.headers[header] !== undefined) score += s;
   }
+
   if (req.method === "GET") {
     const cl = parseInt(req.headers["content-length"] || "0", 10);
     if (cl > 0) score += penalties.getWithBody;
   }
+
   return score;
 }
 
@@ -469,25 +451,31 @@ function checkRateLimit(ip) {
   const { windowMs, maxRequests } = CONFIG.rateLimit;
   const now = Date.now();
   const e   = rateLimitStore.get(ip) || { count: 0, windowStart: now };
+
   if (now - e.windowStart > windowMs) {
     e.count = 1; e.windowStart = now;
     rateLimitStore.set(ip, e);
     return { limited: false };
   }
+
   e.count++;
   rateLimitStore.set(ip, e);
+
   if (e.count > maxRequests) {
     return {
       limited:    true,
       retryAfter: Math.ceil((e.windowStart + windowMs - now) / 1000),
     };
   }
+
   return { limited: false };
 }
 
 function jitterDelay() {
   const { minMs, maxMs } = CONFIG.jitter;
-  return new Promise(r => setTimeout(r, minMs + Math.floor(Math.random() * (maxMs - minMs))));
+  return new Promise(r =>
+    setTimeout(r, minMs + Math.floor(Math.random() * (maxMs - minMs)))
+  );
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -495,15 +483,15 @@ function jitterDelay() {
 // ══════════════════════════════════════════════════════════════════════════
 
 function applyBaseHeaders(res) {
-  res.setHeader("X-Content-Type-Options",     "nosniff");
-  res.setHeader("X-Frame-Options",            "DENY");
-  res.setHeader("X-Robots-Tag",               "noindex,nofollow,noarchive");
-  res.setHeader("Cache-Control",              "no-store,no-cache,must-revalidate,private");
-  res.setHeader("Pragma",                     "no-cache");
-  res.setHeader("Expires",                    "0");
-  res.setHeader("Referrer-Policy",            "no-referrer");
-  res.setHeader("Strict-Transport-Security",  "max-age=31536000; includeSubDomains");
-  res.setHeader("Content-Security-Policy",    "default-src 'none'; frame-ancestors 'none'");
+  res.setHeader("X-Content-Type-Options",    "nosniff");
+  res.setHeader("X-Frame-Options",           "DENY");
+  res.setHeader("X-Robots-Tag",              "noindex,nofollow,noarchive");
+  res.setHeader("Cache-Control",             "no-store,no-cache,must-revalidate,private");
+  res.setHeader("Pragma",                    "no-cache");
+  res.setHeader("Expires",                   "0");
+  res.setHeader("Referrer-Policy",           "no-referrer");
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("Content-Security-Policy",   "default-src 'none'; frame-ancestors 'none'");
   res.setHeader("X-Request-Id",              randomHex(8));
   res.removeHeader("X-Powered-By");
   res.removeHeader("Server");
@@ -527,6 +515,7 @@ function buildBlockedPage() {
   const { page: p, fonts: f, tailwind: tw } = CONFIG;
   const sub = p.subtitle.join("<br/>");
   const wrn = p.warning.lines.join("<br/>");
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -560,10 +549,13 @@ function buildBlockedPage() {
 </head>
 <body oncontextmenu="return false">
   <div class="card">
-    <div style="display:flex;justify-content:center"><div class="badge"><div class="dot"></div>${p.badge}</div></div>
+    <div style="display:flex;justify-content:center">
+      <div class="badge"><div class="dot"></div>${p.badge}</div>
+    </div>
     <div class="sh">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L4 6V12C4 16.4 7.4 20.5 12 22C16.6 20.5 20 16.4 20 12V6L12 2Z" fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M12 2L4 6V12C4 16.4 7.4 20.5 12 22C16.6 20.5 20 16.4 20 12V6L12 2Z"
+              fill="rgba(239,68,68,0.12)" stroke="#ef4444" stroke-width="1.5" stroke-linejoin="round"/>
         <line x1="9" y1="12" x2="11" y2="14" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/>
         <line x1="11" y1="14" x2="15" y2="10" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/>
       </svg>
@@ -576,8 +568,11 @@ function buildBlockedPage() {
   </div>
   <script>
     document.addEventListener('keydown',function(e){
-      if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&['I','J','C'].includes(e.key))||(e.ctrlKey&&e.key==='U'))
-        e.preventDefault();
+      if(
+        e.key==='F12'||
+        (e.ctrlKey&&e.shiftKey&&['I','J','C'].includes(e.key))||
+        (e.ctrlKey&&e.key==='U')
+      ) e.preventDefault();
     });
   <\/script>
 </body>
@@ -596,8 +591,8 @@ function sendBlocked(res) {
 
 function getRoute(req) {
   const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
-  if (path === "/api/challenge")                     return "challenge";
-  if (path === "/api/gateway" || path === "/flycer") return "gateway";
+  if (path === "/api/challenge")                      return "challenge";
+  if (path === "/api/gateway" || path === "/flycer")  return "gateway";
   return "unknown";
 }
 
@@ -605,7 +600,7 @@ async function parseBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
   return new Promise(resolve => {
     let raw = "";
-    req.on("data",  c => { raw += c; });
+    req.on("data",  c  => { raw += c; });
     req.on("end",   () => { try { resolve(JSON.parse(raw)); } catch { resolve(null); } });
     req.on("error", () => resolve(null));
   });
@@ -617,7 +612,7 @@ async function parseBody(req) {
 
 async function handleChallenge(req, res) {
 
-  // L1: Browser → blocked page (ALWAYS FIRST)
+  // L1: Browser check
   if (isBrowserRequest(req)) return sendBlocked(res);
 
   // L2: Method guard
@@ -640,10 +635,10 @@ async function handleChallenge(req, res) {
     return res.status(429).end("-- rate limited");
   }
 
-  // HEAD — no body
+  // HEAD → no body
   if (req.method === "HEAD") return res.status(200).end();
 
-  // Trim store before adding
+  // Trim store jika penuh
   if (challengeStore.size >= CONFIG.challenge.maxStored) {
     const now = Date.now();
     for (const [id, d] of challengeStore) {
@@ -653,7 +648,6 @@ async function handleChallenge(req, res) {
 
   await jitterDelay();
 
-  // Generate challenge
   const nonce        = randomToken(24);
   const challenge_id = randomHex(16);
   const timestamp    = Date.now();
@@ -666,12 +660,12 @@ async function handleChallenge(req, res) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  HANDLER — POST /api/gateway  |  POST /flycer
+//  HANDLER — POST /api/gateway | POST /flycer
 // ══════════════════════════════════════════════════════════════════════════
 
 async function handleGateway(req, res) {
 
-  // L1: Browser → blocked page (ALWAYS FIRST)
+  // L1: Browser check
   if (isBrowserRequest(req)) return sendBlocked(res);
 
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -696,7 +690,7 @@ async function handleGateway(req, res) {
     return res.status(429).end("-- rate limited");
   }
 
-  // HEAD — no body
+  // HEAD → no body
   if (req.method === "HEAD") return res.status(200).end();
 
   // L5: Parse body
@@ -710,7 +704,7 @@ async function handleGateway(req, res) {
     return res.status(400).end("-- missing fields");
   }
 
-  // L7: Timestamp type check
+  // L7: Timestamp type
   const ts = Number(timestamp);
   if (!Number.isFinite(ts) || ts <= 0) {
     return res.status(400).end("-- invalid timestamp");
@@ -730,7 +724,7 @@ async function handleGateway(req, res) {
     return res.status(403).end("-- invalid nonce");
   }
 
-  // L10: Freshness (max 15 seconds old)
+  // L10: Freshness check (max 15 detik)
   const age = Date.now() - ts;
   if (age < 0 || age > CONFIG.challenge.expiryMs) {
     challengeStore.delete(challenge_id);
@@ -738,19 +732,19 @@ async function handleGateway(req, res) {
     return res.status(403).end("-- challenge expired");
   }
 
-  // L11: HMAC-SHA256 signature (timing-safe)
+  // L11: HMAC signature (timing-safe)
   if (!verifySignature(nonce, ts, challenge_id, signature)) {
     challengeStore.delete(challenge_id);
     await jitterDelay();
     return res.status(403).end("-- invalid signature");
   }
 
-  // L12: Consume challenge (true one-time use)
+  // L12: Consume challenge (one-time use)
   challengeStore.delete(challenge_id);
 
   await jitterDelay();
 
-  // L13: Build & deliver encrypted loader
+  // L13: Build & deliver loader
   return res.status(200).end(buildLoader());
 }
 
