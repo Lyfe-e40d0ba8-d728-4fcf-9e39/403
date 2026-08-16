@@ -17,6 +17,10 @@
       "dest": "/api/scripts"
     },
     {
+      "src": "^/api/scripts/?$",
+      "dest": "/api/scripts"
+    },
+    {
       "src": "^/api/(.*)$",
       "status": 404
     },
