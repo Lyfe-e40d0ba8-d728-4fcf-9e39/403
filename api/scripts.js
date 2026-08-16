@@ -1,16 +1,10 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  FLYCER SCRIPTS ENGINE v11.0
-//  Security  : Base64 + XOR + Substitution Cipher (3-layer)
-//  Stability : Zero hookfunction, zero GC, zero global mutation
-//  Weight    : Lightweight — no heavy math, no AES in Lua
-//  Universal : Delta, Arceus X, Fluxus, Wave, Solara, Hydrogen,
-//              Codex, Synapse X, KRNL, Xeno, and most mobile executors
-//
-//  Encrypt flow (server):
-//    URL → Base64 → XOR(key_A) → Substitution(key_B) → array angka
-//
-//  Decrypt flow (client Lua):
-//    array angka → InvSubstitution(key_B) → XOR(key_A) → Base64 decode → URL
+//  FLYCER SCRIPTS ENGINE v11.1
+//  Fix: Script fitur tidak berjalan (Noclip dll)
+//  Security: Base64 + XOR + Substitution Cipher (3-layer)
+//  Stability: Zero hookfunction, zero GC, zero global mutation
+//  Universal: Delta, Arceus X, Fluxus, Wave, Solara, Hydrogen,
+//             Codex, Synapse X, KRNL, Xeno, most mobile executors
 // ══════════════════════════════════════════════════════════════════════════
 
 import crypto from "crypto";
@@ -111,28 +105,22 @@ function randomBytes(n) {
 
 // ── Layer 1: Base64 encode ────────────────────────────────────────────────
 function toBase64Bytes(str) {
-  // Encode string ke Base64 lalu ambil byte-nya
   const b64 = Buffer.from(str, "utf8").toString("base64");
   return Array.from(Buffer.from(b64, "utf8"));
 }
 
-// ── Layer 2: XOR dengan key acak 16 byte ─────────────────────────────────
+// ── Layer 2: XOR ──────────────────────────────────────────────────────────
 function xorEncrypt(bytes, key) {
   return bytes.map((b, i) => b ^ key[i % key.length]);
 }
 
 // ── Layer 3: Substitution cipher ─────────────────────────────────────────
-// Buat tabel substitusi acak untuk 256 nilai byte
-// Forward: plainByte → cipherByte
-// Inverse: cipherByte → plainByte  (untuk decrypt di Lua)
 function buildSubTable() {
-  // Fisher-Yates shuffle pada 0-255
   const tbl = Array.from({ length: 256 }, (_, i) => i);
   for (let i = 255; i > 0; i--) {
-    const j = crypto.randomInt(0, i + 1);
+    const j  = crypto.randomInt(0, i + 1);
     [tbl[i], tbl[j]] = [tbl[j], tbl[i]];
   }
-  // inverse table
   const inv = new Array(256);
   tbl.forEach((v, k) => { inv[v] = k; });
   return { fwd: tbl, inv };
@@ -144,24 +132,18 @@ function subEncrypt(bytes, fwdTable) {
 
 // ── Full 3-layer encrypt ──────────────────────────────────────────────────
 function encryptUrl(url) {
-  const xorKey        = randomBytes(16);
-  const { fwd, inv }  = buildSubTable();
-
-  const layer1 = toBase64Bytes(url);       // Base64 bytes
-  const layer2 = xorEncrypt(layer1, xorKey); // XOR
-  const layer3 = subEncrypt(layer2, fwd);    // Substitution
-
-  return {
-    data:    layer3,   // Final encrypted byte array
-    xorKey,            // 16-byte XOR key
-    invSub:  inv,      // 256-byte inverse sub table (untuk Lua decode)
-  };
+  const xorKey       = randomBytes(16);
+  const { fwd, inv } = buildSubTable();
+  const layer1       = toBase64Bytes(url);
+  const layer2       = xorEncrypt(layer1, xorKey);
+  const layer3       = subEncrypt(layer2, fwd);
+  return { data: layer3, xorKey, invSub: inv };
 }
 
-// ── Lua variable name generator ───────────────────────────────────────────
+// ── Lua variable name ─────────────────────────────────────────────────────
 function luaVar() {
-  const alpha = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const l     = alpha[Math.floor(Math.random() * 26)]; // selalu lowercase awal
+  const alpha = "abcdefghijklmnopqrstuvwxyz";
+  const l     = alpha[Math.floor(Math.random() * 26)];
   return `_${l}${crypto.randomBytes(4).toString("hex")}`;
 }
 
@@ -171,61 +153,82 @@ function j() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  LUA BASE64 DECODE (Pure Lua, Lua 5.1 + Luau compatible)
-//  Self-contained, no external library, no bit32
+//  LUA BASE64 DECODE
+//  Pure Lua 5.1 + Luau compatible, no bit32, no external lib
 // ══════════════════════════════════════════════════════════════════════════
 
 function getLuaBase64() {
   return `local function _b64d(s)
-local b="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-local t={}
-for i=1,#b do t[b:sub(i,i)]=i-1 end
-local r={}
-local buf=0
-local bits=0
-for i=1,#s do
-local c=s:sub(i,i)
-if c~="=" then
-local v=t[c]
-if v then
-buf=buf*64+v
-bits=bits+6
-if bits>=8 then
-bits=bits-8
-r[#r+1]=string.char(math.floor(buf/2^bits)%256)
-buf=buf%(2^bits)
-end
-end
-end
-end
-return table.concat(r)
+  local b="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  local t={}
+  for i=1,#b do t[b:sub(i,i)]=i-1 end
+  local r={}
+  local buf=0
+  local bits=0
+  for i=1,#s do
+    local c=s:sub(i,i)
+    if c~="=" then
+      local v=t[c]
+      if v then
+        buf=buf*64+v
+        bits=bits+6
+        if bits>=8 then
+          bits=bits-8
+          r[#r+1]=string.char(math.floor(buf/2^bits)%256)
+          buf=buf%(2^bits)
+        end
+      end
+    end
+  end
+  return table.concat(r)
 end`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  LUA LOADER BUILDER v11
+//  LUA ENVIRONMENT PATCH
 //
-//  Client Decrypt Flow:
-//  [1] data[] → InvSubstitution(invSub[]) → xored[]
-//  [2] xored[] → XOR(xorKey[]) → base64 bytes → base64 string
-//  [3] base64 string → base64 decode → URL string
-//  [4] URL → HttpGet → loadstring → execute
+//  Beberapa script menggunakan getscriptname() / getcallingscript()
+//  untuk verifikasi. Patch ini memastikan environment bersih dan
+//  script target berjalan seolah-olah dipanggil langsung.
 //
-//  RULES (Delta-safe, Universal):
+//  PENTING: Patch ini TIDAK mengubah/memblokir fitur apapun dari
+//  script target. Hanya memastikan environment kompatibel.
+// ══════════════════════════════════════════════════════════════════════════
+
+function getLuaEnvPatch() {
+  return `-- Environment compatibility patch
+local _genv = getfenv and getfenv(0) or _G
+if not _genv then _genv = _G end`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  LUA LOADER BUILDER v11.1
+//
+//  CRITICAL FIX dari v11.0:
+//  - pcall wrapper dihapus saat execute fn()
+//    Alasan: pcall membungkus environment baru → beberapa fitur script
+//    (terutama yang pakai upvalue / getfenv) tidak bisa akses _G dengan benar
+//
+//  - fn() dipanggil LANGSUNG tanpa pcall
+//    Ini memastikan script target berjalan di environment yang IDENTIK
+//    dengan loadstring(game:HttpGet("url"))() langsung
+//
+//  - Tambah setfenv patch untuk executor yang support getfenv/setfenv
+//    Memastikan script target dapat akses environment global penuh
+//
+//  RULES (Universal & Delta-safe):
 //  ✅ Zero hookfunction
 //  ✅ Zero collectgarbage manual
 //  ✅ Zero global = nil assignment
 //  ✅ Zero bit32 / ~ operator / // operator
-//  ✅ Zero heavy math loop
-//  ✅ All operations inside local scope
-//  ✅ pcall only on HttpGet dan loadstring
+//  ✅ fn() dipanggil langsung (no pcall wrapper) → fitur script penuh
+//  ✅ Environment patch untuk kompatibilitas maksimal
 // ══════════════════════════════════════════════════════════════════════════
 
 function buildLoader(loaderUrl) {
   const { data, xorKey, invSub } = encryptUrl(loaderUrl);
 
-  // Split invSub table jadi beberapa bagian
-  // agar tidak ada 1 array 256 elemen yang obvious
+  // Split invSub jadi 4 bagian (64 elemen masing-masing)
   const sub1 = invSub.slice(0, 64);
   const sub2 = invSub.slice(64, 128);
   const sub3 = invSub.slice(128, 192);
@@ -235,146 +238,143 @@ function buildLoader(loaderUrl) {
   const xk1 = xorKey.slice(0, 8);
   const xk2 = xorKey.slice(8, 16);
 
-  // Split data jadi beberapa chunk (max 40 elemen per chunk)
-  // Ini menghindari array raksasa satu baris yang obvious
-  const chunks   = [];
-  const chunkSz  = 40;
+  // Split data jadi chunks (40 elemen per chunk)
+  const chunks  = [];
+  const chunkSz = 40;
   for (let i = 0; i < data.length; i += chunkSz) {
     chunks.push(data.slice(i, i + chunkSz));
   }
 
-  // ── Variable names ──
+  // Variable names
   const v = {
-    // Sub table parts
-    s1: luaVar(), s2: luaVar(), s3: luaVar(), s4: luaVar(),
-    st: luaVar(), // full sub table
-    // XOR key parts
-    xk1: luaVar(), xk2: luaVar(),
-    xk:  luaVar(), // full xor key
-    // Data chunks (generated below)
+    s1:  luaVar(), s2: luaVar(), s3: luaVar(), s4: luaVar(),
+    st:  luaVar(),
+    xk1: luaVar(), xk2: luaVar(), xk: luaVar(),
     chunks: chunks.map(() => luaVar()),
-    dat:  luaVar(), // full data array
-    // Working vars
-    idx:  luaVar(),
-    tmp:  luaVar(),
-    res:  luaVar(),
-    url:  luaVar(),
-    hg:   luaVar(),
-    ok:   luaVar(),
-    src:  luaVar(),
-    fn:   luaVar(),
+    dat: luaVar(),
+    idx: luaVar(),
+    tmp: luaVar(),
+    res: luaVar(),
+    b64: luaVar(),
+    url: luaVar(),
+    hg:  luaVar(),
+    ok:  luaVar(),
+    src: luaVar(),
+    fn:  luaVar(),
+    env: luaVar(),
+    aa:  luaVar(),
+    bb:  luaVar(),
+    r:   luaVar(),
+    p:   luaVar(),
+    klen: luaVar(),
   };
 
-  // ── Build Lua script ──
   const lines = [];
 
   lines.push(j());
 
-  // ── Part 1: Substitution table assembly ──
+  // ── Part 1: Substitution table ─────────────────────────────────────────
   lines.push(`local ${v.s1}={${sub1.join(",")}}`);
   lines.push(`local ${v.s2}={${sub2.join(",")}}`);
   lines.push(`local ${v.s3}={${sub3.join(",")}}`);
   lines.push(`local ${v.s4}={${sub4.join(",")}}`);
   lines.push(j());
-
-  // Gabung jadi satu table
   lines.push(`local ${v.st}={}`);
-  lines.push(`for ${v.idx}=1,#${v.s1} do ${v.st}[${v.idx}]=${v.s1}[${v.idx}] end`);
-  lines.push(`for ${v.idx}=1,#${v.s2} do ${v.st}[64+${v.idx}]=${v.s2}[${v.idx}] end`);
-  lines.push(`for ${v.idx}=1,#${v.s3} do ${v.st}[128+${v.idx}]=${v.s3}[${v.idx}] end`);
-  lines.push(`for ${v.idx}=1,#${v.s4} do ${v.st}[192+${v.idx}]=${v.s4}[${v.idx}] end`);
-  // Hapus parts
-  lines.push(`${v.s1}=nil ${v.s2}=nil ${v.s3}=nil ${v.s4}=nil`);
+  lines.push(`for ${v.idx}=1,64 do`);
+  lines.push(`  ${v.st}[${v.idx}]=${v.s1}[${v.idx}]`);
+  lines.push(`  ${v.st}[64+${v.idx}]=${v.s2}[${v.idx}]`);
+  lines.push(`  ${v.st}[128+${v.idx}]=${v.s3}[${v.idx}]`);
+  lines.push(`  ${v.st}[192+${v.idx}]=${v.s4}[${v.idx}]`);
+  lines.push(`end`);
+  lines.push(`${v.s1}=nil;${v.s2}=nil;${v.s3}=nil;${v.s4}=nil`);
   lines.push(j());
 
-  // ── Part 2: XOR key assembly ──
+  // ── Part 2: XOR key ────────────────────────────────────────────────────
   lines.push(`local ${v.xk1}={${xk1.join(",")}}`);
   lines.push(`local ${v.xk2}={${xk2.join(",")}}`);
   lines.push(`local ${v.xk}={}`);
-  lines.push(`for ${v.idx}=1,8 do ${v.xk}[${v.idx}]=${v.xk1}[${v.idx}] end`);
-  lines.push(`for ${v.idx}=1,8 do ${v.xk}[8+${v.idx}]=${v.xk2}[${v.idx}] end`);
-  lines.push(`${v.xk1}=nil ${v.xk2}=nil`);
+  lines.push(`for ${v.idx}=1,8 do`);
+  lines.push(`  ${v.xk}[${v.idx}]=${v.xk1}[${v.idx}]`);
+  lines.push(`  ${v.xk}[8+${v.idx}]=${v.xk2}[${v.idx}]`);
+  lines.push(`end`);
+  lines.push(`${v.xk1}=nil;${v.xk2}=nil`);
   lines.push(j());
 
-  // ── Part 3: Data chunks ──
+  // ── Part 3: Data chunks ────────────────────────────────────────────────
   chunks.forEach((chunk, ci) => {
     lines.push(`local ${v.chunks[ci]}={${chunk.join(",")}}`);
   });
   lines.push(j());
-
-  // Gabung semua chunk
   lines.push(`local ${v.dat}={}`);
   lines.push(`local ${v.idx}=0`);
   chunks.forEach((_, ci) => {
-    lines.push(`for _,b in ipairs(${v.chunks[ci]}) do ${v.idx}=${v.idx}+1;${v.dat}[${v.idx}]=b end`);
+    lines.push(`for _,b in ipairs(${v.chunks[ci]}) do`);
+    lines.push(`  ${v.idx}=${v.idx}+1`);
+    lines.push(`  ${v.dat}[${v.idx}]=b`);
+    lines.push(`end`);
     lines.push(`${v.chunks[ci]}=nil`);
   });
   lines.push(j());
 
-  // ── Part 4: Decrypt ──
-  // Step A: InvSub
+  // ── Part 4: Decrypt ────────────────────────────────────────────────────
+
+  // Step A: Inverse substitution
   lines.push(`local ${v.tmp}={}`);
   lines.push(`for ${v.idx}=1,#${v.dat} do`);
-  lines.push(`  local b=${v.dat}[${v.idx}]`);
-  lines.push(`  ${v.tmp}[${v.idx}]=${v.st}[b+1]`);  // +1 karena Lua 1-indexed
+  lines.push(`  ${v.tmp}[${v.idx}]=${v.st}[${v.dat}[${v.idx}]+1]`);
   lines.push(`end`);
-  lines.push(`${v.dat}=nil`);
-  lines.push(`${v.st}=nil`);
+  lines.push(`${v.dat}=nil;${v.st}=nil`);
   lines.push(j());
 
   // Step B: XOR decode
+  // Menggunakan while loop ringan — compatible semua executor
   lines.push(`local ${v.res}={}`);
-  lines.push(`local klen=#${v.xk}`);
+  lines.push(`local ${v.klen}=#${v.xk}`);
   lines.push(`for ${v.idx}=1,#${v.tmp} do`);
-  lines.push(`  local a=${v.tmp}[${v.idx}]`);
-  lines.push(`  local b=${v.xk}[((${v.idx}-1)%klen)+1]`);
-  // XOR tanpa ~ operator, tanpa bit32, tanpa math.floor berat
-  lines.push(`  local r=0`);
-  lines.push(`  local p=1`);
-  lines.push(`  local aa=a`);
-  lines.push(`  local bb=b`);
-  lines.push(`  while aa>0 or bb>0 do`);
-  lines.push(`    if aa%2~=bb%2 then r=r+p end`);
-  lines.push(`    aa=aa-aa%2`);   // aa = floor(aa/1)*1 trick (ringan)
-  lines.push(`    bb=bb-bb%2`);
-  lines.push(`    aa=aa/2`);
-  lines.push(`    bb=bb/2`);
-  lines.push(`    p=p*2`);
+  lines.push(`  local ${v.aa}=${v.tmp}[${v.idx}]`);
+  lines.push(`  local ${v.bb}=${v.xk}[((${v.idx}-1)%${v.klen})+1]`);
+  lines.push(`  local ${v.r}=0`);
+  lines.push(`  local ${v.p}=1`);
+  lines.push(`  while ${v.aa}>0 or ${v.bb}>0 do`);
+  lines.push(`    if ${v.aa}%2~=${v.bb}%2 then ${v.r}=${v.r}+${v.p} end`);
+  lines.push(`    ${v.aa}=${v.aa}-${v.aa}%2`);
+  lines.push(`    ${v.bb}=${v.bb}-${v.bb}%2`);
+  lines.push(`    ${v.aa}=${v.aa}/2`);
+  lines.push(`    ${v.bb}=${v.bb}/2`);
+  lines.push(`    ${v.p}=${v.p}*2`);
   lines.push(`  end`);
-  lines.push(`  ${v.res}[${v.idx}]=string.char(r)`);
+  lines.push(`  ${v.res}[${v.idx}]=string.char(${v.r})`);
   lines.push(`end`);
-  lines.push(`${v.tmp}=nil`);
-  lines.push(`${v.xk}=nil`);
+  lines.push(`${v.tmp}=nil;${v.xk}=nil`);
   lines.push(j());
 
-  // Step C: Gabung chars → base64 string
-  lines.push(`local b64str=table.concat(${v.res})`);
+  // Step C: table.concat → base64 string
+  lines.push(`local ${v.b64}=table.concat(${v.res})`);
   lines.push(`${v.res}=nil`);
   lines.push(j());
 
   // Step D: Base64 decode → URL
   lines.push(getLuaBase64());
   lines.push(j());
-  lines.push(`local ${v.url}=_b64d(b64str)`);
-  lines.push(`_b64d=nil`);
-  lines.push(`b64str=nil`);
+  lines.push(`local ${v.url}=_b64d(${v.b64})`);
+  lines.push(`_b64d=nil;${v.b64}=nil`);
   lines.push(j());
 
-  // ── Part 5: Validate & Execute ──
+  // ── Part 5: Validate URL ───────────────────────────────────────────────
   lines.push(`if type(${v.url})~="string" or #${v.url}<8 then`);
   lines.push(`  ${v.url}=nil`);
   lines.push(`  return`);
   lines.push(`end`);
   lines.push(j());
 
+  // ── Part 6: HttpGet source ─────────────────────────────────────────────
+  // TIDAK wrap dengan pcall di sini agar tidak ada overhead env
   lines.push(`local ${v.hg}=game.HttpGet`);
   lines.push(`local ${v.ok},${v.src}=pcall(function()`);
   lines.push(`  return ${v.hg}(game,${v.url})`);
   lines.push(`end)`);
-  lines.push(`${v.url}=nil`);
-  lines.push(`${v.hg}=nil`);
+  lines.push(`${v.url}=nil;${v.hg}=nil`);
   lines.push(j());
-
   lines.push(`if not ${v.ok} then return end`);
   lines.push(`if type(${v.src})~="string" or #${v.src}<10 then`);
   lines.push(`  ${v.src}=nil`);
@@ -382,9 +382,25 @@ function buildLoader(loaderUrl) {
   lines.push(`end`);
   lines.push(j());
 
+  // ── Part 7: loadstring + execute ──────────────────────────────────────
+  // KRITIS: fn() dipanggil LANGSUNG tanpa pcall
+  // Ini memastikan environment identik dengan loadstring(...)() langsung
+  // Semua fitur script (Noclip, GUI, remote, dll) berjalan penuh
   lines.push(`local ${v.fn}=loadstring(${v.src})`);
   lines.push(`${v.src}=nil`);
   lines.push(`if type(${v.fn})~="function" then return end`);
+  lines.push(j());
+
+  // Environment patch: setfenv jika tersedia
+  // Ini memastikan script target punya akses ke _G penuh
+  lines.push(`pcall(function()`);
+  lines.push(`  if setfenv then`);
+  lines.push(`    setfenv(${v.fn},getfenv(0))`);
+  lines.push(`  end`);
+  lines.push(`end)`);
+  lines.push(j());
+
+  // Execute langsung — TANPA pcall wrapper
   lines.push(`${v.fn}()`);
   lines.push(`${v.fn}=nil`);
   lines.push(j());
@@ -557,25 +573,21 @@ function buildBlockedPage() {
 
 function parseRoute(req) {
   const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
-
-  const m1 = path.match(/\/loaders\/([^/]+\/[^/]+)$/);
+  const m1   = path.match(/\/loaders\/([^/]+\/[^/]+)$/);
   if (m1) return m1[1];
-
   const m2 = path.match(/^\/([^/]+\/[^/]+)$/);
   if (m2 && !m2[1].startsWith("api/")) return m2[1];
-
   try {
     const u       = new URL(path, "http://localhost");
     const version = u.searchParams.get("version");
     const name    = u.searchParams.get("name");
     if (version && name) return `${version}/${name}`;
   } catch {}
-
   return null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  HELPERS
+//  HELPER
 // ══════════════════════════════════════════════════════════════════════════
 
 function sendBlocked(res) {
@@ -591,24 +603,20 @@ function sendBlocked(res) {
 export default async function handler(req, res) {
   applyBaseHeaders(res);
 
-  // L1: Browser
-  if (isBrowserRequest(req)) return sendBlocked(res);
+  if (isBrowserRequest(req))                    return sendBlocked(res);
 
-  // L2: Method
   if (!["GET", "HEAD"].includes(req.method)) {
     res.setHeader("Allow", "GET, HEAD");
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(405).end("-- method not allowed");
   }
 
-  // L3: Suspicion
   if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
     await jitterDelay();
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(200).end("-- error");
   }
 
-  // L4: Rate limit
   const ip = getClientIp(req);
   const rl = checkRateLimit(ip);
   if (rl.limited) {
@@ -617,27 +625,23 @@ export default async function handler(req, res) {
     return res.status(429).end("-- rate limited");
   }
 
-  // L5: Route
   const key = parseRoute(req);
   if (!key) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(404).end("-- not found");
   }
 
-  // L6: Registry lookup
   const entry = LOADERS[key];
   if (!entry) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(404).end("-- loader not found");
   }
 
-  // L7: Active
   if (entry.active === false) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(403).end("-- loader disabled");
   }
 
-  // L8: HEAD
   if (req.method === "HEAD") {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.status(200).end();
@@ -645,7 +649,6 @@ export default async function handler(req, res) {
 
   await jitterDelay();
 
-  // L9: Deliver
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   return res.status(200).end(buildLoader(entry.url));
 }
