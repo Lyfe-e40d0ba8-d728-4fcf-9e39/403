@@ -14,7 +14,7 @@ export const LOADERS = {
 
   "v2/ae3a52604adf": {
     url:    "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/supported-b045ccea-1f23-4201-866b-0b3c3381cdba/main/CarControllerUniversal",
-    active: false,
+    active: true,
     note:   "Car Controller for Mobile Universal",
   },
 
