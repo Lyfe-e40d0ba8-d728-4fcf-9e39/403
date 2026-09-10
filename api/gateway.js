@@ -11,6 +11,8 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 
 // ══════════════════════════════════════════════════════════════════════════
 //  CONFIG
@@ -20,8 +22,8 @@ const CONFIG = {
 
   // ── Secrets ──────────────────────────────────────────────────────────
   secrets: {
-    hmacKey: "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
-    aesKey:  "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",
+    hmacKey: process.env.HMAC_KEY || "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
+    aesKey:  process.env.AES_KEY || "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",
   },
 
   // ── Loader URL ────────────────────────────────────────────────────────
@@ -589,10 +591,266 @@ function sendBlocked(res) {
   return res.status(200).send(buildBlockedPage());
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+//  LICENSE / WHITELIST
+// ══════════════════════════════════════════════════════════════════════════
+
+const WHITELIST_LOCAL_PATH = process.env.WHITELIST_FILE
+  ? path.resolve(process.cwd(), process.env.WHITELIST_FILE)
+  : path.join(process.cwd(), "api/whitelist.json");
+
+function normalizeLockType(value) {
+  const v = String(value || "").trim().toLowerCase();
+  if (v === "username" || v === "device") return v;
+  return null;
+}
+
+function licenseError(res, status, code, message) {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  return res.status(status).json({ success: false, code, message });
+}
+
+function readLocalWhitelist() {
+  const candidates = [
+    WHITELIST_LOCAL_PATH,
+    path.join(process.cwd(), "Whitelisting-main/whitelist.json"),
+    path.join(process.cwd(), "../Whitelisting-main/whitelist.json"),
+    path.join(process.cwd(), "api/whitelist.json"),
+  ];
+  for (const file of candidates) {
+    try {
+      if (fs.existsSync(file)) {
+        const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+  }
+  throw new Error("Whitelist file is unavailable.");
+}
+
+function githubConfigured() {
+  return Boolean(
+    process.env.GITHUB_TOKEN &&
+    process.env.GITHUB_OWNER &&
+    process.env.GITHUB_REPO &&
+    process.env.GITHUB_WHITELIST_PATH
+  );
+}
+
+async function githubWhitelist() {
+  const url = `https://api.github.com/repos/${encodeURIComponent(process.env.GITHUB_OWNER)}/${encodeURIComponent(process.env.GITHUB_REPO)}/contents/${process.env.GITHUB_WHITELIST_PATH}`;
+  const r = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "Flycer-License-API",
+    },
+    cache: "no-store",
+  });
+  if (!r.ok) throw new Error(`GitHub whitelist read failed: ${r.status}`);
+  const data = await r.json();
+  if (!data.content || !data.sha) throw new Error("GitHub whitelist response is invalid.");
+  const text = Buffer.from(data.content.replace(/\s/g, ""), "base64").toString("utf8");
+  const parsed = JSON.parse(text);
+  if (!Array.isArray(parsed)) throw new Error("Whitelist must be a JSON array.");
+  return { data: parsed, sha: data.sha };
+}
+
+async function saveGithubWhitelist(list, sha) {
+  const url = `https://api.github.com/repos/${encodeURIComponent(process.env.GITHUB_OWNER)}/${encodeURIComponent(process.env.GITHUB_REPO)}/contents/${process.env.GITHUB_WHITELIST_PATH}`;
+  const content = Buffer.from(JSON.stringify(list, null, 2) + "\n", "utf8").toString("base64");
+  const r = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "Flycer-License-API",
+    },
+    body: JSON.stringify({
+      message: "chore: bind Flycer license identifier",
+      content,
+      sha,
+    }),
+  });
+  if (!r.ok) throw new Error(`GitHub whitelist write failed: ${r.status}`);
+}
+
+async function loadWhitelist() {
+  if (githubConfigured()) return await githubWhitelist();
+  return { data: readLocalWhitelist(), sha: null };
+}
+
+async function persistWhitelist(list, sha) {
+  if (githubConfigured()) return await saveGithubWhitelist(list, sha);
+
+  // Local development fallback only. Vercel's serverless filesystem is not
+  // a persistent database, so production first-bind persistence should use
+  // the GitHub backend above or another persistent datastore.
+  const target = WHITELIST_LOCAL_PATH;
+  try {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, JSON.stringify(list, null, 2) + "\n", "utf8");
+  } catch (e) {
+    throw new Error("Whitelist cannot be persisted. Configure GitHub storage.");
+  }
+}
+
+function licenseIsExpired(entry, nowSeconds) {
+  const type = String(entry.type || "duration").toLowerCase();
+  if (type === "free" || type === "lifetime") return false;
+  const exp = Number(entry.expire_timestamp);
+  return !Number.isFinite(exp) || exp <= nowSeconds;
+}
+
+function safeLicenseInfo(entry, product, lockType) {
+  return {
+    product,
+    key_type: String(entry.type || "duration").toLowerCase(),
+    lock_type: lockType || "none",
+    expires_at: Number(entry.expire_timestamp) || 0,
+  };
+}
+
+async function handleLicenseValidate(req, res) {
+  if (isBrowserRequest(req)) return sendBlocked(res);
+
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return licenseError(res, 405, "METHOD_NOT_ALLOWED", "Only POST is allowed.");
+  }
+
+  if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
+    await jitterDelay();
+    return licenseError(res, 403, "REQUEST_REJECTED", "Request rejected.");
+  }
+
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(ip);
+  if (rl.limited) {
+    res.setHeader("Retry-After", String(rl.retryAfter));
+    return licenseError(res, 429, "RATE_LIMITED", "Too many requests. Try again later.");
+  }
+
+  const body = await parseBody(req);
+  if (!body || typeof body !== "object") {
+    return licenseError(res, 400, "BAD_REQUEST", "Invalid JSON body.");
+  }
+
+  const product = String(body.product || "").trim();
+  const key = String(body.key || "").trim();
+  const lockType = normalizeLockType(body.lock_type);
+  const identifier = String(body.identifier || "").trim();
+  const client = String(body.client || "").trim();
+
+  if (!product || !key || !lockType || !identifier) {
+    return licenseError(res, 400, "MISSING_FIELDS", "product, key, lock_type and identifier are required.");
+  }
+  if (key.length > 256 || identifier.length > 512 || product.length > 128) {
+    return licenseError(res, 400, "INVALID_FIELDS", "One or more fields are too long.");
+  }
+
+  await jitterDelay();
+
+  let loaded;
+  try {
+    loaded = await loadWhitelist();
+  } catch {
+    return licenseError(res, 503, "WHITELIST_UNAVAILABLE", "License service is temporarily unavailable.");
+  }
+
+  const list = loaded.data;
+  const entry = list.find(x => x && String(x.key || "") === key);
+
+  if (!entry) {
+    return licenseError(res, 404, "NOT_FOUND", "License key was not found.");
+  }
+  if (entry.active !== true) {
+    return licenseError(res, 403, "DISABLED", "License is disabled.");
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (licenseIsExpired(entry, now)) {
+    return licenseError(res, 403, "EXPIRED", "License has expired.");
+  }
+
+  const keyType = String(entry.type || "duration").toLowerCase();
+
+  // Free/public keys are intentionally not bound to an identifier.
+  if (keyType === "free") {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.status(200).json({
+      success: true,
+      code: "VALID",
+      message: "License validated successfully.",
+      license: safeLicenseInfo(entry, product, "none"),
+    });
+  }
+
+  // Product is optional in legacy whitelist entries. When present, it must
+  // match the requested product or use '*'.
+  const entryProduct = String(entry.product || "*").trim();
+  if (entryProduct !== "*" && entryProduct !== product) {
+    return licenseError(res, 403, "PRODUCT_MISMATCH", "This license is not valid for this product.");
+  }
+
+  // Legacy entries without lock_type are treated as Device for compatibility.
+  const storedLockType = normalizeLockType(entry.lock_type) || "device";
+  if (storedLockType !== lockType) {
+    return licenseError(res, 403, "LOCK_TYPE_MISMATCH", `This license is locked as ${storedLockType}.`);
+  }
+
+  const storedIdentifier = String(entry.hwid || "").trim();
+  if (!storedIdentifier) {
+    // First-use binding. Persist before reporting success so the lock is not
+    // lost after the serverless function terminates.
+    entry.hwid = identifier;
+    entry.lock_type = lockType;
+    entry.product = entryProduct;
+
+    try {
+      await persistWhitelist(list, loaded.sha);
+    } catch {
+      return licenseError(res, 503, "BIND_PERSIST_FAILED", "License could not be securely bound. Configure persistent whitelist storage.");
+    }
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.status(200).json({
+      success: true,
+      code: "BOUND",
+      message: "License activated and bound successfully.",
+      license: safeLicenseInfo(entry, product, lockType),
+    });
+  }
+
+  if (storedIdentifier !== identifier) {
+    return licenseError(
+      res,
+      403,
+      "IDENTIFIER_MISMATCH",
+      lockType === "username"
+        ? "This license is locked to another Roblox account."
+        : "This license is locked to another device."
+    );
+  }
+
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  return res.status(200).json({
+    success: true,
+    code: "VALID",
+    message: "License validated successfully.",
+    license: safeLicenseInfo(entry, product, lockType),
+    client: client || undefined,
+  });
+}
+
 function getRoute(req) {
   const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
-  if (path === "/api/challenge")                      return "challenge";
-  if (path === "/api/gateway" || path === "/flycer")  return "gateway";
+  if (path === "/api/challenge")                         return "challenge";
+  if (path === "/api/license/validate")                 return "license";
+  if (path === "/api/gateway" || path === "/flycer")     return "gateway";
   return "unknown";
 }
 
@@ -757,6 +1015,7 @@ export default async function handler(req, res) {
 
   const route = getRoute(req);
   if (route === "challenge") return handleChallenge(req, res);
+  if (route === "license")   return handleLicenseValidate(req, res);
   if (route === "gateway")   return handleGateway(req, res);
 
   // Unknown route
