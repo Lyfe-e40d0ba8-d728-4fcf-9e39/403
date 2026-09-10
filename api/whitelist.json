@@ -1,0 +1,52 @@
+[
+  {
+    "key": "Flycer",
+    "hwid": "db5c6682-a77f-81a9-2896-656c846f1d3a",
+    "type": "duration",
+    "expire_timestamp": 1893456000,
+    "note": "Akses Premium Aktif s/d 1 Januari 2030",
+    "active": true,
+    "product": "*",
+    "lock_type": "device"
+  },
+  {
+    "key": "Flycer-01",
+    "hwid": "ba3e6d27-4f6d-4483-7788-e4f68bd20437",
+    "type": "lifetime",
+    "expire_timestamp": 0,
+    "note": "Akses Lifetime Tanpa Batas Waktu",
+    "active": true,
+    "product": "*",
+    "lock_type": "device"
+  },
+  {
+    "key": "FREEMIUM",
+    "hwid": "",
+    "type": "free",
+    "expire_timestamp": 0,
+    "note": "Key Free Publik, Siapapun Bisa Pakai",
+    "active": true,
+    "product": "*",
+    "lock_type": "none"
+  },
+  {
+    "key": "Flycer_EXPIRED_KEY_TEST",
+    "hwid": "98979566-bd8e-4f60-8e89-e83349ef99b4",
+    "type": "duration",
+    "expire_timestamp": 1704067200,
+    "note": "Key Expired (Sengaja Dibuat Expired: 1 Jan 2024)",
+    "active": true,
+    "product": "*",
+    "lock_type": "device"
+  },
+  {
+    "key": "Flycer_BANNED_KEY_TEST",
+    "hwid": "98979566-bd8e-4f60-8e89-e83349ef99b4",
+    "type": "lifetime",
+    "expire_timestamp": 0,
+    "note": "Key Dibanned/Revoked (Active: False)",
+    "active": false,
+    "product": "*",
+    "lock_type": "device"
+  }
+]
