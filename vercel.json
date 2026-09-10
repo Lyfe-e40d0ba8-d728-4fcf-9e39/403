@@ -5,6 +5,10 @@
       "dest": "/api/gateway"
     },
     {
+      "src": "^/api/license/validate/?$",
+      "dest": "/api/gateway"
+    },
+    {
       "src": "^/flycer/?$",
       "dest": "/api/gateway"
     },
