@@ -762,20 +762,118 @@ async function handleLicenseValidate(req, res) {
   }
 
   const list = loaded.data;
-  const entry = list.find(x => x && String(x.key || "") === key);
+  const now = Math.floor(Date.now() / 1000);
 
-  if (!entry) {
+  // Do not use Array.find() on key alone. A whitelist may contain legacy
+  // duplicate keys, so validation must evaluate the complete license record.
+  // A candidate is considered a match only when key + active + product +
+  // lock_type + expiry + identifier all agree. Empty HWID is allowed only
+  // for a first-use bind.
+  const keyEntries = list.filter(entry =>
+    entry && String(entry.key || "").trim() === key
+  );
+
+  if (keyEntries.length === 0) {
     return licenseError(res, 404, "NOT_FOUND", "License key was not found.");
   }
-  if (entry.active !== true) {
-    return licenseError(res, 403, "DISABLED", "License is disabled.");
+
+  const matchingEntries = [];
+  const disabledEntries = [];
+  const expiredEntries = [];
+  const productMismatchEntries = [];
+  const lockMismatchEntries = [];
+  const identifierMismatchEntries = [];
+
+  for (const entry of keyEntries) {
+    if (entry.active !== true) {
+      disabledEntries.push(entry);
+      continue;
+    }
+
+    if (licenseIsExpired(entry, now)) {
+      expiredEntries.push(entry);
+      continue;
+    }
+
+    // Product is optional in legacy whitelist entries. When present, it must
+    // match the requested product or use '*'.
+    const entryProduct = String(entry.product || "*").trim();
+    if (entryProduct !== "*" && entryProduct !== product) {
+      productMismatchEntries.push(entry);
+      continue;
+    }
+
+    // Legacy entries without lock_type are treated as Device for compatibility.
+    const storedLockType = normalizeLockType(entry.lock_type) || "device";
+    if (storedLockType !== lockType) {
+      lockMismatchEntries.push(entry);
+      continue;
+    }
+
+    const storedIdentifier = String(entry.hwid || "").trim();
+
+    // An already-bound entry must match the caller's exact identifier.
+    // An empty HWID is a valid first-use binding candidate.
+    if (storedIdentifier !== "" && storedIdentifier !== identifier) {
+      identifierMismatchEntries.push(entry);
+      continue;
+    }
+
+    matchingEntries.push({
+      entry,
+      entryProduct,
+      storedLockType,
+      storedIdentifier,
+    });
   }
 
-  const now = Math.floor(Date.now() / 1000);
-  if (licenseIsExpired(entry, now)) {
-    return licenseError(res, 403, "EXPIRED", "License has expired.");
+  // Prefer an already-bound exact identifier over an unbound duplicate key.
+  // This prevents a duplicate legacy record from stealing a valid license.
+  const selected =
+    matchingEntries.find(x => x.storedIdentifier === identifier) ||
+    matchingEntries.find(x => x.storedIdentifier === "");
+
+  if (!selected) {
+    if (disabledEntries.length === keyEntries.length) {
+      return licenseError(res, 403, "DISABLED", "License is disabled.");
+    }
+
+    if (expiredEntries.length > 0 &&
+        productMismatchEntries.length === 0 &&
+        lockMismatchEntries.length === 0 &&
+        identifierMismatchEntries.length === 0) {
+      return licenseError(res, 403, "EXPIRED", "License has expired.");
+    }
+
+    if (productMismatchEntries.length > 0 &&
+        productMismatchEntries.length === keyEntries.length - disabledEntries.length - expiredEntries.length) {
+      return licenseError(res, 403, "PRODUCT_MISMATCH", "This license is not valid for this product.");
+    }
+
+    if (lockMismatchEntries.length > 0 &&
+        lockMismatchEntries.length === keyEntries.length - disabledEntries.length - expiredEntries.length - productMismatchEntries.length) {
+      const expected = normalizeLockType(lockMismatchEntries[0].lock_type) || "device";
+      return licenseError(res, 403, "LOCK_TYPE_MISMATCH", `This license is locked as ${expected}.`);
+    }
+
+    if (identifierMismatchEntries.length > 0) {
+      return licenseError(
+        res,
+        403,
+        "IDENTIFIER_MISMATCH",
+        lockType === "username"
+          ? "This license is locked to another Roblox account."
+          : "This license is locked to another device."
+      );
+    }
+
+    return licenseError(res, 403, "INVALID_LICENSE", "License does not match the requested product, lock type, identifier, or validity period.");
   }
 
+  const entry = selected.entry;
+  const entryProduct = selected.entryProduct;
+  const storedLockType = selected.storedLockType;
+  const storedIdentifier = selected.storedIdentifier;
   const keyType = String(entry.type || "duration").toLowerCase();
 
   // Free/public keys are intentionally not bound to an identifier.
@@ -789,20 +887,6 @@ async function handleLicenseValidate(req, res) {
     });
   }
 
-  // Product is optional in legacy whitelist entries. When present, it must
-  // match the requested product or use '*'.
-  const entryProduct = String(entry.product || "*").trim();
-  if (entryProduct !== "*" && entryProduct !== product) {
-    return licenseError(res, 403, "PRODUCT_MISMATCH", "This license is not valid for this product.");
-  }
-
-  // Legacy entries without lock_type are treated as Device for compatibility.
-  const storedLockType = normalizeLockType(entry.lock_type) || "device";
-  if (storedLockType !== lockType) {
-    return licenseError(res, 403, "LOCK_TYPE_MISMATCH", `This license is locked as ${storedLockType}.`);
-  }
-
-  const storedIdentifier = String(entry.hwid || "").trim();
   if (!storedIdentifier) {
     // First-use binding. Persist before reporting success so the lock is not
     // lost after the serverless function terminates.
@@ -825,16 +909,7 @@ async function handleLicenseValidate(req, res) {
     });
   }
 
-  if (storedIdentifier !== identifier) {
-    return licenseError(
-      res,
-      403,
-      "IDENTIFIER_MISMATCH",
-      lockType === "username"
-        ? "This license is locked to another Roblox account."
-        : "This license is locked to another device."
-    );
-  }
+  // At this point the selected record already matched the exact identifier.
 
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   return res.status(200).json({
