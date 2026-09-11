@@ -1,6 +1,6 @@
 [
   {
-    "key": "Flycer-01",
+    "key": "Testing",
     "hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
     "type": "duration",
     "expire_timestamp": 1893456000,
@@ -11,7 +11,7 @@
   },
   {
     "key": "Flycer-01",
-    "hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
+    "hwid": "",
     "type": "lifetime",
     "expire_timestamp": 0,
     "note": "Akses Lifetime Tanpa Batas Waktu",
