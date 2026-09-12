@@ -31,7 +31,7 @@
   },
   {
     "key": "Flycer_EXPIRED_KEY_TEST",
-    "hwid": "98979566-bd8e-4f60-8e89-e83349ef99b4",
+    "hwid": "",
     "type": "duration",
     "expire_timestamp": 1704067200,
     "note": "Key Expired (Sengaja Dibuat Expired: 1 Jan 2024)",
@@ -41,7 +41,7 @@
   },
   {
     "key": "Flycer_BANNED_KEY_TEST",
-    "hwid": "98979566-bd8e-4f60-8e89-e83349ef99b4",
+    "hwid": "",
     "type": "lifetime",
     "expire_timestamp": 0,
     "note": "Key Dibanned/Revoked (Active: False)",
