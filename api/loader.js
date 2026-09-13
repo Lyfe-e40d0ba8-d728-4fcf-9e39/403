@@ -25,9 +25,9 @@ export const LOADERS = {
   },
 
   "v2/premium": {
-    url:    "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/main/Test",
+    url:    "https://raw.githubusercontent.com/Kyoukara/Loader/refs/heads/main/soms.lua",
     active: true,
-    note:   "Premium script (inactive - placeholder)",
+    note:   "SOMS)",
   },
 
 };
