@@ -3,15 +3,15 @@
     "key": "Testing",
     "hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
     "type": "duration",
-    "expire_timestamp": 1789358340,
+    "expire_timestamp": 1789405199,
     "note": "Akses Premium Aktif s/d 1 Januari 2030",
     "active": true,
     "product": "Survive Overnight in a Mega Store",
     "lock_type": "device"
   },
   {
-    "key": "Flycer-01",
-    "hwid": "",
+    "key": "Lifetime",
+    "hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
     "type": "lifetime",
     "expire_timestamp": 0,
     "note": "Akses Lifetime Tanpa Batas Waktu",
