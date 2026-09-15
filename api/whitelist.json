@@ -1,52 +1,26 @@
 [
   {
-    "key": "Testing",
-    "hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
-    "type": "duration",
-    "expire_timestamp": 1789405199,
-    "note": "Akses Premium Aktif s/d 1 Januari 2030",
-    "active": true,
-    "product": "Survive Overnight in a Mega Store",
-    "lock_type": "device"
+    "user key": "Test key duration",
+    "user hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
+    "type key": "duration",
+    "expiredkey_timestamp": 1789577940,
+    "note": "Key pemilik dari Kyoukara",
+    "active": true
   },
   {
-    "key": "Lifetime",
-    "hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
-    "type": "lifetime",
-    "expire_timestamp": 0,
-    "note": "Akses Lifetime Tanpa Batas Waktu",
-    "active": true,
-    "product": "*",
-    "lock_type": "device"
+    "user key": "Test key lifetime",
+    "user hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
+    "type key": "lifetime",
+    "expiredkey_timestamp": 0,
+    "note": "Key pemilik dari Marcel",
+    "active": true
   },
   {
-    "key": "FREEMIUM",
-    "hwid": "",
-    "type": "free",
-    "expire_timestamp": 0,
-    "note": "Key Free Publik, Siapapun Bisa Pakai",
-    "active": true,
-    "product": "*",
-    "lock_type": "none"
-  },
-  {
-    "key": "Flycer_EXPIRED_KEY_TEST",
-    "hwid": "",
-    "type": "duration",
-    "expire_timestamp": 1704067200,
-    "note": "Key Expired (Sengaja Dibuat Expired: 1 Jan 2024)",
-    "active": true,
-    "product": "*",
-    "lock_type": "device"
-  },
-  {
-    "key": "Flycer_BANNED_KEY_TEST",
-    "hwid": "",
-    "type": "lifetime",
-    "expire_timestamp": 0,
-    "note": "Key Dibanned/Revoked (Active: False)",
-    "active": false,
-    "product": "*",
-    "lock_type": "device"
+    "user key": "Test key free",
+    "user hwid": "",
+    "type key": "free",
+    "expiredkey_timestamp": 0,
+    "note": "Key pemilik dari Ray",
+    "active": true
   }
 ]
