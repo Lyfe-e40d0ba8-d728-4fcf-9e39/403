@@ -1,13 +1,13 @@
 // ══════════════════════════════════════════════════════════════════════════
-//  FLYCER GATEWAY v8.1 (Fixed)
+//  FLYCER GATEWAY v8.2 (Multi-Device HWID Support)
 //  AES-256-CBC (server encrypt) + XOR obfuscation + pure Lua AES decrypt
 //  Challenge-response · Anti-bot · Anti-browser · Rate limit
 //
-//  FIX v8.1:
-//  - blockHeaders check: tambah !== undefined agar lebih akurat
-//  - isBrowserRequest(): perbaiki empty UA handling
-//  - buildBlockedPage(): escape template literal lebih konsisten
-//  - Cleanup komentar & formatting
+//  CHANGELOG v8.2:
+//  - "user hwid" sekarang mendukung ARRAY (multi-device binding)
+//  - Tambah field "max_devices" per key (default: 1)
+//  - Response license sekarang menyertakan devices_used & devices_limit
+//  - Reset HWID buyer cukup kosongkan array "user hwid": [] di whitelist.json
 // ══════════════════════════════════════════════════════════════════════════
 
 import crypto from "crypto";
@@ -454,19 +454,10 @@ function getClientIp(req) {
 function isBrowserRequest(req) {
     const ua = (req.headers["user-agent"] || "").toLowerCase();
 
-    // Allowlist: executor yang diketahui
     if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
-
-    // UA kosong: bisa executor atau tool, jangan blokir di sini
-    // (akan ditangani oleh suspicion score)
-
-    // Blocklist UA keywords
     if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
-
-    // Browser-only security headers (FIXED: cek !== undefined)
     if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
 
-    // Browser Accept pattern
     const accept = (req.headers["accept"] || "").toLowerCase();
     if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
 
@@ -780,6 +771,24 @@ async function persistWhitelist(list, sha) {
     }
 }
 
+// ── [NEW] Normalisasi HWID: dukung format lama (string) & baru (array) ────
+function normalizeHwidList(entry) {
+    const raw = entry["user hwid"];
+    if (Array.isArray(raw)) {
+        return raw.map(v => String(v).trim()).filter(Boolean);
+    }
+    if (typeof raw === "string" && raw.trim() !== "") {
+        return [raw.trim()];
+    }
+    return [];
+}
+
+// ── [NEW] Batas maksimal device per key (default: 1) ───────────────────────
+function getMaxDevices(entry) {
+    const n = Number(entry.max_devices);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+}
+
 function licenseIsExpired(entry, nowSeconds) {
     const type = String(entry["type key"] || "duration").toLowerCase();
     if (type === "free" || type === "lifetime") return false;
@@ -787,15 +796,20 @@ function licenseIsExpired(entry, nowSeconds) {
     return !Number.isFinite(exp) || exp <= nowSeconds;
 }
 
+// ── [UPDATED] Sertakan devices_used & devices_limit di response ───────────
 function safeLicenseInfo(entry, product, lockType) {
+    const hwidList = normalizeHwidList(entry);
     return {
         product,
         key_type: String(entry["type key"] || "duration").toLowerCase(),
         lock_type: lockType || "none",
         expires_at: Number(entry["expiredkey_timestamp"]) || 0,
+        devices_used: hwidList.length,
+        devices_limit: getMaxDevices(entry),
     };
 }
 
+// ── [UPDATED] handleLicenseValidate dengan multi-device binding ───────────
 async function handleLicenseValidate(req, res) {
     if (isBrowserRequest(req)) return sendBlocked(res);
 
@@ -821,10 +835,9 @@ async function handleLicenseValidate(req, res) {
         return licenseError(res, 400, "BAD_REQUEST", "Invalid JSON body.");
     }
 
-    // 'product' tetap diterima untuk keperluan display/log (mis. Tab Flycer Log),
-    // TAPI TIDAK dipakai untuk membatasi key. Whitelist.json versi ini tidak
-    // punya field product, artinya 1 key otomatis berlaku untuk SEMUA script
-    // yang menembak endpoint ini — cocok untuk multi-produk tanpa edit manual.
+    // 'product' diterima untuk keperluan display/log (Tab Flycer Log),
+    // TAPI TIDAK dipakai untuk membatasi key. 1 key otomatis berlaku
+    // untuk SEMUA script/produk yang menembak endpoint ini.
     const product = String(body.product || "").trim();
     const key = String(body.key || "").trim();
     const lockType = normalizeLockType(body.lock_type);
@@ -850,9 +863,6 @@ async function handleLicenseValidate(req, res) {
     const list = loaded.data;
     const now = Math.floor(Date.now() / 1000);
 
-    // Matching sekarang murni berdasarkan "user key" + "user hwid".
-    // Tidak ada lagi pengecekan product/lock_type terhadap data whitelist,
-    // sehingga 1 key otomatis kompatibel lintas semua script/produk.
     const keyEntries = list.filter(entry =>
         entry && String(entry["user key"] || "").trim() === key
     );
@@ -861,71 +871,33 @@ async function handleLicenseValidate(req, res) {
         return licenseError(res, 404, "NOT_FOUND", "License key was not found.");
     }
 
-    const matchingEntries = [];
-    const disabledEntries = [];
-    const expiredEntries = [];
-    const identifierMismatchEntries = [];
+    let candidate = null;
+    let rejectCode = "INVALID_LICENSE";
+    let rejectMessage = "License does not match the requested identifier or validity period.";
 
     for (const entry of keyEntries) {
         if (entry.active !== true) {
-            disabledEntries.push(entry);
+            rejectCode = "DISABLED";
+            rejectMessage = "License is disabled.";
             continue;
         }
-
         if (licenseIsExpired(entry, now)) {
-            expiredEntries.push(entry);
+            rejectCode = "EXPIRED";
+            rejectMessage = "License has expired.";
             continue;
         }
-
-        const storedIdentifier = String(entry["user hwid"] || "").trim();
-
-        // Sudah pernah di-bind ke identifier lain -> tolak.
-        // Identifier kosong = kandidat first-use binding.
-        if (storedIdentifier !== "" && storedIdentifier !== identifier) {
-            identifierMismatchEntries.push(entry);
-            continue;
-        }
-
-        matchingEntries.push({
-            entry,
-            storedIdentifier
-        });
+        candidate = entry;
+        break;
     }
 
-    // Prioritaskan entry yang sudah exact-match dengan identifier pemanggil
-    // dibanding entry duplikat yang belum di-bind.
-    const selected =
-        matchingEntries.find(x => x.storedIdentifier === identifier) ||
-        matchingEntries.find(x => x.storedIdentifier === "");
-
-    if (!selected) {
-        if (disabledEntries.length === keyEntries.length) {
-            return licenseError(res, 403, "DISABLED", "License is disabled.");
-        }
-
-        if (expiredEntries.length > 0 && identifierMismatchEntries.length === 0) {
-            return licenseError(res, 403, "EXPIRED", "License has expired.");
-        }
-
-        if (identifierMismatchEntries.length > 0) {
-            return licenseError(
-                res,
-                403,
-                "IDENTIFIER_MISMATCH",
-                lockType === "username" ?
-                "This license is locked to another Roblox account." :
-                "This license is locked to another device."
-            );
-        }
-
-        return licenseError(res, 403, "INVALID_LICENSE", "License does not match the requested identifier or validity period.");
+    if (!candidate) {
+        return licenseError(res, 403, rejectCode, rejectMessage);
     }
 
-    const entry = selected.entry;
-    const storedIdentifier = selected.storedIdentifier;
+    const entry = candidate;
     const keyType = String(entry["type key"] || "duration").toLowerCase();
 
-    // Free/public keys tidak dibatasi ke 1 identifier tertentu.
+    // Free/public key: tidak dibatasi ke device manapun sama sekali.
     if (keyType === "free") {
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         return res.status(200).json({
@@ -933,34 +905,49 @@ async function handleLicenseValidate(req, res) {
             code: "VALID",
             message: "License validated successfully.",
             license: safeLicenseInfo(entry, product, "none"),
+            client: client || undefined,
         });
     }
 
-    if (!storedIdentifier) {
-        // First-use binding. Persist sebelum melaporkan sukses agar lock
-        // tidak hilang setelah serverless function berhenti.
-        entry["user hwid"] = identifier;
+    const hwidList = normalizeHwidList(entry);
+    const maxDevices = getMaxDevices(entry);
 
-        try {
-            await persistWhitelist(list, loaded.sha);
-        } catch {
-            return licenseError(res, 503, "BIND_PERSIST_FAILED", "License could not be securely bound. Configure persistent whitelist storage.");
-        }
-
+    // Device sudah pernah di-bind sebelumnya -> langsung valid.
+    if (hwidList.includes(identifier)) {
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         return res.status(200).json({
             success: true,
-            code: "BOUND",
-            message: "License activated and bound successfully.",
+            code: "VALID",
+            message: "License validated successfully.",
             license: safeLicenseInfo(entry, product, lockType),
+            client: client || undefined,
         });
+    }
+
+    // Device baru, tapi slot sudah penuh -> tolak.
+    if (hwidList.length >= maxDevices) {
+        return licenseError(
+            res,
+            403,
+            "DEVICE_LIMIT_REACHED",
+            `This key is already bound to the maximum of ${maxDevices} device(s). Contact the seller to reset it.`
+        );
+    }
+
+    // First-use / tambahan device baru -> bind & persist ke whitelist.
+    entry["user hwid"] = [...hwidList, identifier];
+
+    try {
+        await persistWhitelist(list, loaded.sha);
+    } catch {
+        return licenseError(res, 503, "BIND_PERSIST_FAILED", "License could not be securely bound. Configure persistent whitelist storage.");
     }
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     return res.status(200).json({
         success: true,
-        code: "VALID",
-        message: "License validated successfully.",
+        code: "BOUND",
+        message: "License activated and bound successfully.",
         license: safeLicenseInfo(entry, product, lockType),
         client: client || undefined,
     });
@@ -998,22 +985,18 @@ async function parseBody(req) {
 
 async function handleChallenge(req, res) {
 
-    // L1: Browser check
     if (isBrowserRequest(req)) return sendBlocked(res);
 
-    // L2: Method guard
     if (!["GET", "HEAD"].includes(req.method)) {
         res.setHeader("Allow", "GET, HEAD");
         return res.status(405).end("-- method not allowed");
     }
 
-    // L3: Suspicion score
     if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
         await jitterDelay();
         return res.status(200).end("-- error");
     }
 
-    // L4: Rate limit
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip);
     if (rl.limited) {
@@ -1021,10 +1004,8 @@ async function handleChallenge(req, res) {
         return res.status(429).end("-- rate limited");
     }
 
-    // HEAD → no body
     if (req.method === "HEAD") return res.status(200).end();
 
-    // Trim store jika penuh
     if (challengeStore.size >= CONFIG.challenge.maxStored) {
         const now = Date.now();
         for (const [id, d] of challengeStore) {
@@ -1058,24 +1039,20 @@ async function handleChallenge(req, res) {
 
 async function handleGateway(req, res) {
 
-    // L1: Browser check
     if (isBrowserRequest(req)) return sendBlocked(res);
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
 
-    // L2: Method guard
     if (!["POST", "HEAD"].includes(req.method)) {
         res.setHeader("Allow", "POST, HEAD");
         return res.status(405).end("-- method not allowed");
     }
 
-    // L3: Suspicion score
     if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
         await jitterDelay();
         return res.status(200).end("-- error");
     }
 
-    // L4: Rate limit
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip);
     if (rl.limited) {
@@ -1083,10 +1060,8 @@ async function handleGateway(req, res) {
         return res.status(429).end("-- rate limited");
     }
 
-    // HEAD → no body
     if (req.method === "HEAD") return res.status(200).end();
 
-    // L5: Parse body
     const body = await parseBody(req);
     if (!body) return res.status(400).end("-- bad request");
 
@@ -1097,32 +1072,27 @@ async function handleGateway(req, res) {
         signature
     } = body;
 
-    // L6: Required fields
     if (!challenge_id || !nonce || !timestamp || !signature) {
         return res.status(400).end("-- missing fields");
     }
 
-    // L7: Timestamp type
     const ts = Number(timestamp);
     if (!Number.isFinite(ts) || ts <= 0) {
         return res.status(400).end("-- invalid timestamp");
     }
 
-    // L8: Challenge lookup (anti-replay)
     const stored = challengeStore.get(challenge_id);
     if (!stored) {
         await jitterDelay();
         return res.status(403).end("-- challenge expired");
     }
 
-    // L9: Nonce match
     if (stored.nonce !== nonce) {
         challengeStore.delete(challenge_id);
         await jitterDelay();
         return res.status(403).end("-- invalid nonce");
     }
 
-    // L10: Freshness check (max 15 detik)
     const age = Date.now() - ts;
     if (age < 0 || age > CONFIG.challenge.expiryMs) {
         challengeStore.delete(challenge_id);
@@ -1130,19 +1100,16 @@ async function handleGateway(req, res) {
         return res.status(403).end("-- challenge expired");
     }
 
-    // L11: HMAC signature (timing-safe)
     if (!verifySignature(nonce, ts, challenge_id, signature)) {
         challengeStore.delete(challenge_id);
         await jitterDelay();
         return res.status(403).end("-- invalid signature");
     }
 
-    // L12: Consume challenge (one-time use)
     challengeStore.delete(challenge_id);
 
     await jitterDelay();
 
-    // L13: Build & deliver loader
     return res.status(200).end(buildLoader());
 }
 
@@ -1158,7 +1125,6 @@ export default async function handler(req, res) {
     if (route === "license") return handleLicenseValidate(req, res);
     if (route === "gateway") return handleGateway(req, res);
 
-    // Unknown route
     if (isBrowserRequest(req)) return sendBlocked(res);
     return res.status(404).end("-- not found");
 }
