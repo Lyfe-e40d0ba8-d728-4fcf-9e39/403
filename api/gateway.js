@@ -20,94 +20,114 @@ import path from "path";
 
 const CONFIG = {
 
-  // ── Secrets ──────────────────────────────────────────────────────────
-  secrets: {
-    hmacKey: process.env.HMAC_KEY || "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
-    aesKey:  process.env.AES_KEY || "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",
-  },
-
-  // ── Loader URL ────────────────────────────────────────────────────────
-  loader: {
-    url: "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/refs/heads/main/Test",
-  },
-
-  // ── Challenge ─────────────────────────────────────────────────────────
-  challenge: {
-    expiryMs:  15_000,
-    maxStored: 500,
-  },
-
-  // ── Rate limit ────────────────────────────────────────────────────────
-  rateLimit: {
-    windowMs:    60_000,
-    maxRequests: 8,
-  },
-
-  // ── Suspicion ─────────────────────────────────────────────────────────
-  suspicion: {
-    blockScore: 10,
-  },
-
-  // ── Jitter ────────────────────────────────────────────────────────────
-  jitter: { minMs: 40, maxMs: 130 },
-
-  // ── Blocked page ──────────────────────────────────────────────────────
-  page: {
-    title:   "Access Denied | Flycer Developments",
-    badge:   "403 Forbidden",
-    heading: { prefix: "ACCESS", highlight: "DENIED" },
-    subtitle: [
-      "This endpoint is restricted.",
-      "Browser access is not permitted on this route.",
-    ],
-    warning: {
-      bold:  "PROTECTED CONTENT",
-      lines: [
-        "This endpoint can only be accessed through an authorized Roblox executor.",
-        "Browser access is blocked for security reasons.",
-      ],
+    // ── Secrets ──────────────────────────────────────────────────────────
+    secrets: {
+        hmacKey: process.env.HMAC_KEY || "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
+        aesKey: process.env.AES_KEY || "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",
     },
-    footer: "Flycer Loader \u00A0·\u00A0 Restricted Access",
-  },
 
-  fonts: {
-    body: "'Inter', sans-serif",
-    mono: "'JetBrains Mono', monospace",
-    url:  "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
-  },
-  tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-
-  // ── Browser detection ─────────────────────────────────────────────────
-  browser: {
-    uaKeywords: [
-      "mozilla", "chrome", "safari", "firefox", "edge", "opera", "brave",
-      "vivaldi", "webkit", "gecko", "trident", "msie", "headlesschrome",
-      "phantomjs", "selenium", "puppeteer", "playwright", "curl", "wget",
-      "httpie", "postman", "insomnia", "axios", "python-requests", "go-http",
-      "java/", "libwww", "perl", "ruby", "bot", "spider", "crawl",
-      "googlebot", "bingbot", "yandex", "baidu", "facebookexternalhit",
-      "twitterbot", "discord", "telegram", "whatsapp", "slack",
-    ],
-    uaAllowlist: ["roblox"],
-    blockHeaders: [
-      "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
-      "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
-      "sec-fetch-user", "upgrade-insecure-requests",
-    ],
-  },
-
-  // ── Executor suspicion scoring ────────────────────────────────────────
-  executor: {
-    penaltyHeaders: [
-      { header: "referer",  score: 3 },
-      { header: "referrer", score: 3 },
-      { header: "origin",   score: 3 },
-      { header: "cookie",   score: 4 },
-    ],
-    penalties: {
-      emptyUA: 5, shortUA: 3, longUA: 2, getWithBody: 5,
+    // ── Loader URL ────────────────────────────────────────────────────────
+    loader: {
+        url: "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/refs/heads/main/Test",
     },
-  },
+
+    // ── Challenge ─────────────────────────────────────────────────────────
+    challenge: {
+        expiryMs: 15_000,
+        maxStored: 500,
+    },
+
+    // ── Rate limit ────────────────────────────────────────────────────────
+    rateLimit: {
+        windowMs: 60_000,
+        maxRequests: 8,
+    },
+
+    // ── Suspicion ─────────────────────────────────────────────────────────
+    suspicion: {
+        blockScore: 10,
+    },
+
+    // ── Jitter ────────────────────────────────────────────────────────────
+    jitter: {
+        minMs: 40,
+        maxMs: 130
+    },
+
+    // ── Blocked page ──────────────────────────────────────────────────────
+    page: {
+        title: "Access Denied | Flycer Developments",
+        badge: "403 Forbidden",
+        heading: {
+            prefix: "ACCESS",
+            highlight: "DENIED"
+        },
+        subtitle: [
+            "This endpoint is restricted.",
+            "Browser access is not permitted on this route.",
+        ],
+        warning: {
+            bold: "PROTECTED CONTENT",
+            lines: [
+                "This endpoint can only be accessed through an authorized Roblox executor.",
+                "Browser access is blocked for security reasons.",
+            ],
+        },
+        footer: "Flycer Loader \u00A0·\u00A0 Restricted Access",
+    },
+
+    fonts: {
+        body: "'Inter', sans-serif",
+        mono: "'JetBrains Mono', monospace",
+        url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
+    },
+    tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+
+    // ── Browser detection ─────────────────────────────────────────────────
+    browser: {
+        uaKeywords: [
+            "mozilla", "chrome", "safari", "firefox", "edge", "opera", "brave",
+            "vivaldi", "webkit", "gecko", "trident", "msie", "headlesschrome",
+            "phantomjs", "selenium", "puppeteer", "playwright", "curl", "wget",
+            "httpie", "postman", "insomnia", "axios", "python-requests", "go-http",
+            "java/", "libwww", "perl", "ruby", "bot", "spider", "crawl",
+            "googlebot", "bingbot", "yandex", "baidu", "facebookexternalhit",
+            "twitterbot", "discord", "telegram", "whatsapp", "slack",
+        ],
+        uaAllowlist: ["roblox"],
+        blockHeaders: [
+            "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+            "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
+            "sec-fetch-user", "upgrade-insecure-requests",
+        ],
+    },
+
+    // ── Executor suspicion scoring ────────────────────────────────────────
+    executor: {
+        penaltyHeaders: [{
+                header: "referer",
+                score: 3
+            },
+            {
+                header: "referrer",
+                score: 3
+            },
+            {
+                header: "origin",
+                score: 3
+            },
+            {
+                header: "cookie",
+                score: 4
+            },
+        ],
+        penalties: {
+            emptyUA: 5,
+            shortUA: 3,
+            longUA: 2,
+            getWithBody: 5,
+        },
+    },
 };
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -118,13 +138,13 @@ const challengeStore = new Map(); // Map<id, { nonce, timestamp }>
 const rateLimitStore = new Map(); // Map<ip, { count, windowStart }>
 
 setInterval(() => {
-  const now = Date.now();
-  for (const [id, d] of challengeStore) {
-    if (now - d.timestamp > CONFIG.challenge.expiryMs * 2) challengeStore.delete(id);
-  }
-  for (const [ip, d] of rateLimitStore) {
-    if (now - d.windowStart > CONFIG.rateLimit.windowMs * 2) rateLimitStore.delete(ip);
-  }
+    const now = Date.now();
+    for (const [id, d] of challengeStore) {
+        if (now - d.timestamp > CONFIG.challenge.expiryMs * 2) challengeStore.delete(id);
+    }
+    for (const [ip, d] of rateLimitStore) {
+        if (now - d.windowStart > CONFIG.rateLimit.windowMs * 2) rateLimitStore.delete(ip);
+    }
 }, 30_000);
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -132,62 +152,65 @@ setInterval(() => {
 // ══════════════════════════════════════════════════════════════════════════
 
 function randomHex(n = 16) {
-  return crypto.randomBytes(n).toString("hex");
+    return crypto.randomBytes(n).toString("hex");
 }
 
 function randomToken(n = 24) {
-  return crypto.randomBytes(n).toString("base64url");
+    return crypto.randomBytes(n).toString("base64url");
 }
 
 function hmacSign(data) {
-  return crypto
-    .createHmac("sha256", CONFIG.secrets.hmacKey)
-    .update(String(data))
-    .digest("hex");
+    return crypto
+        .createHmac("sha256", CONFIG.secrets.hmacKey)
+        .update(String(data))
+        .digest("hex");
 }
 
 function safeCompare(a, b) {
-  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
-  } catch {
-    return false;
-  }
+    if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+    try {
+        return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+    } catch {
+        return false;
+    }
 }
 
 function buildSignature(nonce, ts, id) {
-  return hmacSign(`${nonce}:${ts}:${id}`);
+    return hmacSign(`${nonce}:${ts}:${id}`);
 }
 
 function verifySignature(nonce, ts, id, sig) {
-  return safeCompare(buildSignature(nonce, ts, id), sig);
+    return safeCompare(buildSignature(nonce, ts, id), sig);
 }
 
 // ── AES-256-CBC encrypt ───────────────────────────────────────────────────
 
 function aesEncrypt(plaintext) {
-  const key = crypto.createHash("sha256").update(CONFIG.secrets.aesKey).digest();
-  const iv  = crypto.randomBytes(16);
+    const key = crypto.createHash("sha256").update(CONFIG.secrets.aesKey).digest();
+    const iv = crypto.randomBytes(16);
 
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  const ct     = Buffer.concat([
-    cipher.update(Buffer.from(plaintext, "utf8")),
-    cipher.final(),
-  ]);
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    const ct = Buffer.concat([
+        cipher.update(Buffer.from(plaintext, "utf8")),
+        cipher.final(),
+    ]);
 
-  return {
-    key:        Array.from(key),
-    iv:         Array.from(iv),
-    ciphertext: Array.from(ct),
-  };
+    return {
+        key: Array.from(key),
+        iv: Array.from(iv),
+        ciphertext: Array.from(ct),
+    };
 }
 
 // ── XOR obfuscation ───────────────────────────────────────────────────────
 
 function xorLayer(data) {
-  const key   = Array.from(crypto.randomBytes(16));
-  const xored = data.map((b, i) => b ^ key[i % key.length]);
-  return { xored, key };
+    const key = Array.from(crypto.randomBytes(16));
+    const xored = data.map((b, i) => b ^ key[i % key.length]);
+    return {
+        xored,
+        key
+    };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -195,7 +218,7 @@ function xorLayer(data) {
 // ══════════════════════════════════════════════════════════════════════════
 
 function getLuaAES() {
-  return `local function _AES_D(kb,ib,cb)
+    return `local function _AES_D(kb,ib,cb)
 local S={99,124,119,123,242,107,111,197,48,1,103,43,254,215,171,118,202,130,201,125,250,89,71,240,173,212,162,175,156,164,114,192,183,253,147,38,54,63,247,204,52,165,229,241,113,216,49,21,4,199,35,195,24,150,5,154,7,18,128,226,235,39,178,117,9,131,44,26,27,110,90,160,82,59,214,179,41,227,47,132,83,209,0,237,32,252,177,91,106,203,190,57,74,76,88,207,208,239,170,251,67,77,51,133,69,249,2,127,80,60,159,168,81,163,64,143,146,157,56,245,188,182,218,33,16,255,243,210,205,12,19,236,95,151,68,23,196,167,126,61,100,93,25,115,96,129,79,220,34,42,144,136,70,238,184,20,222,94,11,219,224,50,58,10,73,6,36,92,194,211,172,98,145,149,228,121,231,200,55,109,141,213,78,169,108,86,244,234,101,122,174,8,186,120,37,46,28,166,180,198,232,221,116,31,75,189,139,138,112,62,181,102,72,3,246,14,97,53,87,185,134,193,29,158,225,248,152,17,105,217,142,148,155,30,135,233,206,85,40,223,140,161,137,13,191,230,66,104,65,153,45,15,176,84,187,22}
 local Si={} for i=0,255 do Si[S[i+1]]=i end
 local function gm(a,b)
@@ -286,9 +309,9 @@ end`;
 // ══════════════════════════════════════════════════════════════════════════
 
 function luaVar() {
-  const alpha = "abcdefghijklmnopqrstuvwxyz";
-  const l     = alpha[Math.floor(Math.random() * 26)];
-  return `_${l}${crypto.randomBytes(3).toString("hex")}`;
+    const alpha = "abcdefghijklmnopqrstuvwxyz";
+    const l = alpha[Math.floor(Math.random() * 26)];
+    return `_${l}${crypto.randomBytes(3).toString("hex")}`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -296,27 +319,49 @@ function luaVar() {
 // ══════════════════════════════════════════════════════════════════════════
 
 function buildLoader() {
-  const url = CONFIG.loader.url;
+    const url = CONFIG.loader.url;
 
-  const { key: aesKeyBytes, iv: aesIvBytes, ciphertext } = aesEncrypt(url);
-  const { xored: ctXored,  key: ctXorKey  } = xorLayer(ciphertext);
-  const { xored: ivXored,  key: ivXorKey  } = xorLayer(aesIvBytes);
-  const { xored: keyXored, key: keyXorKey } = xorLayer(aesKeyBytes);
+    const {
+        key: aesKeyBytes,
+        iv: aesIvBytes,
+        ciphertext
+    } = aesEncrypt(url);
+    const {
+        xored: ctXored,
+        key: ctXorKey
+    } = xorLayer(ciphertext);
+    const {
+        xored: ivXored,
+        key: ivXorKey
+    } = xorLayer(aesIvBytes);
+    const {
+        xored: keyXored,
+        key: keyXorKey
+    } = xorLayer(aesKeyBytes);
 
-  const v = {
-    ctX:   luaVar(), ctK:  luaVar(),
-    ivX:   luaVar(), ivK:  luaVar(),
-    akX:   luaVar(), akK:  luaVar(),
-    xorFn: luaVar(),
-    ct:    luaVar(), iv:   luaVar(), ak:  luaVar(),
-    url:   luaVar(), hg:   luaVar(),
-    ok:    luaVar(), src:  luaVar(), fn:  luaVar(),
-    t0:    luaVar(), spy:  luaVar(),
-  };
+    const v = {
+        ctX: luaVar(),
+        ctK: luaVar(),
+        ivX: luaVar(),
+        ivK: luaVar(),
+        akX: luaVar(),
+        akK: luaVar(),
+        xorFn: luaVar(),
+        ct: luaVar(),
+        iv: luaVar(),
+        ak: luaVar(),
+        url: luaVar(),
+        hg: luaVar(),
+        ok: luaVar(),
+        src: luaVar(),
+        fn: luaVar(),
+        t0: luaVar(),
+        spy: luaVar(),
+    };
 
-  const j = () => `--[[${randomHex(8)}]]`;
+    const j = () => `--[[${randomHex(8)}]]`;
 
-  return `${j()}
+    return `${j()}
 local ${v.t0}=tick()
 local ${v.spy}=false
 ${j()}
@@ -398,86 +443,107 @@ collectgarbage("collect")${j()}`;
 // ══════════════════════════════════════════════════════════════════════════
 
 function getClientIp(req) {
-  const fwd = req.headers["x-forwarded-for"] || "";
-  const ip  = fwd.split(",")[0].trim()
-    || req.headers["x-real-ip"]
-    || req.socket?.remoteAddress
-    || "unknown";
-  return ip.replace(/^::ffff:/, "").trim();
+    const fwd = req.headers["x-forwarded-for"] || "";
+    const ip = fwd.split(",")[0].trim() ||
+        req.headers["x-real-ip"] ||
+        req.socket?.remoteAddress ||
+        "unknown";
+    return ip.replace(/^::ffff:/, "").trim();
 }
 
 function isBrowserRequest(req) {
-  const ua = (req.headers["user-agent"] || "").toLowerCase();
+    const ua = (req.headers["user-agent"] || "").toLowerCase();
 
-  // Allowlist: executor yang diketahui
-  if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
+    // Allowlist: executor yang diketahui
+    if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
 
-  // UA kosong: bisa executor atau tool, jangan blokir di sini
-  // (akan ditangani oleh suspicion score)
+    // UA kosong: bisa executor atau tool, jangan blokir di sini
+    // (akan ditangani oleh suspicion score)
 
-  // Blocklist UA keywords
-  if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
+    // Blocklist UA keywords
+    if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
 
-  // Browser-only security headers (FIXED: cek !== undefined)
-  if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
+    // Browser-only security headers (FIXED: cek !== undefined)
+    if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
 
-  // Browser Accept pattern
-  const accept = (req.headers["accept"] || "").toLowerCase();
-  if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
+    // Browser Accept pattern
+    const accept = (req.headers["accept"] || "").toLowerCase();
+    if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
 
-  return false;
+    return false;
 }
 
 function scoreSuspicion(req) {
-  const ua = req.headers["user-agent"] || "";
-  const { penaltyHeaders, penalties } = CONFIG.executor;
-  let score = 0;
+    const ua = req.headers["user-agent"] || "";
+    const {
+        penaltyHeaders,
+        penalties
+    } = CONFIG.executor;
+    let score = 0;
 
-  if (ua.length === 0)       score += penalties.emptyUA;
-  else if (ua.length < 5)    score += penalties.shortUA;
-  else if (ua.length > 400)  score += penalties.longUA;
+    if (ua.length === 0) score += penalties.emptyUA;
+    else if (ua.length < 5) score += penalties.shortUA;
+    else if (ua.length > 400) score += penalties.longUA;
 
-  for (const { header, score: s } of penaltyHeaders) {
-    if (req.headers[header] !== undefined) score += s;
-  }
+    for (const {
+            header,
+            score: s
+        }
+        of penaltyHeaders) {
+        if (req.headers[header] !== undefined) score += s;
+    }
 
-  if (req.method === "GET") {
-    const cl = parseInt(req.headers["content-length"] || "0", 10);
-    if (cl > 0) score += penalties.getWithBody;
-  }
+    if (req.method === "GET") {
+        const cl = parseInt(req.headers["content-length"] || "0", 10);
+        if (cl > 0) score += penalties.getWithBody;
+    }
 
-  return score;
+    return score;
 }
 
 function checkRateLimit(ip) {
-  const { windowMs, maxRequests } = CONFIG.rateLimit;
-  const now = Date.now();
-  const e   = rateLimitStore.get(ip) || { count: 0, windowStart: now };
-
-  if (now - e.windowStart > windowMs) {
-    e.count = 1; e.windowStart = now;
-    rateLimitStore.set(ip, e);
-    return { limited: false };
-  }
-
-  e.count++;
-  rateLimitStore.set(ip, e);
-
-  if (e.count > maxRequests) {
-    return {
-      limited:    true,
-      retryAfter: Math.ceil((e.windowStart + windowMs - now) / 1000),
+    const {
+        windowMs,
+        maxRequests
+    } = CONFIG.rateLimit;
+    const now = Date.now();
+    const e = rateLimitStore.get(ip) || {
+        count: 0,
+        windowStart: now
     };
-  }
 
-  return { limited: false };
+    if (now - e.windowStart > windowMs) {
+        e.count = 1;
+        e.windowStart = now;
+        rateLimitStore.set(ip, e);
+        return {
+            limited: false
+        };
+    }
+
+    e.count++;
+    rateLimitStore.set(ip, e);
+
+    if (e.count > maxRequests) {
+        return {
+            limited: true,
+            retryAfter: Math.ceil((e.windowStart + windowMs - now) / 1000),
+        };
+    }
+
+    return {
+        limited: false
+    };
 }
 
 function jitterDelay() {
-  const { minMs, maxMs } = CONFIG.jitter;
-  return new Promise(r =>
-    setTimeout(r, minMs + Math.floor(Math.random() * (maxMs - minMs)))
-  );
+    const {
+        minMs,
+        maxMs
+    } = CONFIG.jitter;
+    return new Promise(r =>
+        setTimeout(r, minMs + Math.floor(Math.random() * (maxMs - minMs)))
+    );
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -485,28 +551,28 @@ function jitterDelay() {
 // ══════════════════════════════════════════════════════════════════════════
 
 function applyBaseHeaders(res) {
-  res.setHeader("X-Content-Type-Options",    "nosniff");
-  res.setHeader("X-Frame-Options",           "DENY");
-  res.setHeader("X-Robots-Tag",              "noindex,nofollow,noarchive");
-  res.setHeader("Cache-Control",             "no-store,no-cache,must-revalidate,private");
-  res.setHeader("Pragma",                    "no-cache");
-  res.setHeader("Expires",                   "0");
-  res.setHeader("Referrer-Policy",           "no-referrer");
-  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-  res.setHeader("Content-Security-Policy",   "default-src 'none'; frame-ancestors 'none'");
-  res.setHeader("X-Request-Id",              randomHex(8));
-  res.removeHeader("X-Powered-By");
-  res.removeHeader("Server");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-Robots-Tag", "noindex,nofollow,noarchive");
+    res.setHeader("Cache-Control", "no-store,no-cache,must-revalidate,private");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+    res.setHeader("X-Request-Id", randomHex(8));
+    res.removeHeader("X-Powered-By");
+    res.removeHeader("Server");
 }
 
 function applyBlockedCSP(res) {
-  res.setHeader("Content-Security-Policy", [
-    "default-src 'none'",
-    "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
-    "style-src 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src https://fonts.gstatic.com",
-    "frame-ancestors 'none'",
-  ].join("; "));
+    res.setHeader("Content-Security-Policy", [
+        "default-src 'none'",
+        "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
+        "style-src 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src https://fonts.gstatic.com",
+        "frame-ancestors 'none'",
+    ].join("; "));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -514,11 +580,15 @@ function applyBlockedCSP(res) {
 // ══════════════════════════════════════════════════════════════════════════
 
 function buildBlockedPage() {
-  const { page: p, fonts: f, tailwind: tw } = CONFIG;
-  const sub = p.subtitle.join("<br/>");
-  const wrn = p.warning.lines.join("<br/>");
+    const {
+        page: p,
+        fonts: f,
+        tailwind: tw
+    } = CONFIG;
+    const sub = p.subtitle.join("<br/>");
+    const wrn = p.warning.lines.join("<br/>");
 
-  return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -586,357 +656,340 @@ function buildBlockedPage() {
 // ══════════════════════════════════════════════════════════════════════════
 
 function sendBlocked(res) {
-  applyBlockedCSP(res);
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  return res.status(200).send(buildBlockedPage());
+    applyBlockedCSP(res);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(buildBlockedPage());
 }
 
 // ══════════════════════════════════════════════════════════════════════════
 //  LICENSE / WHITELIST
 // ══════════════════════════════════════════════════════════════════════════
 
-const WHITELIST_LOCAL_PATH = process.env.WHITELIST_FILE
-  ? path.resolve(process.cwd(), process.env.WHITELIST_FILE)
-  : path.join(process.cwd(), "api/whitelist.json");
+const WHITELIST_LOCAL_PATH = process.env.WHITELIST_FILE ?
+    path.resolve(process.cwd(), process.env.WHITELIST_FILE) :
+    path.join(process.cwd(), "api/whitelist.json");
 
 function normalizeLockType(value) {
-  const v = String(value || "").trim().toLowerCase();
-  if (v === "username" || v === "device") return v;
-  return null;
+    const v = String(value || "").trim().toLowerCase();
+    if (v === "username" || v === "device") return v;
+    return null;
 }
 
 function licenseError(res, status, code, message) {
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  return res.status(status).json({ success: false, code, message });
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.status(status).json({
+        success: false,
+        code,
+        message
+    });
 }
 
 function readLocalWhitelist() {
-  const candidates = [
-    WHITELIST_LOCAL_PATH,
-    path.join(process.cwd(), "Whitelisting-main/whitelist.json"),
-    path.join(process.cwd(), "../Whitelisting-main/whitelist.json"),
-    path.join(process.cwd(), "api/whitelist.json"),
-  ];
-  for (const file of candidates) {
-    try {
-      if (fs.existsSync(file)) {
-        const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {}
-  }
-  throw new Error("Whitelist file is unavailable.");
+    const candidates = [
+        WHITELIST_LOCAL_PATH,
+        path.join(process.cwd(), "Whitelisting-main/whitelist.json"),
+        path.join(process.cwd(), "../Whitelisting-main/whitelist.json"),
+        path.join(process.cwd(), "api/whitelist.json"),
+    ];
+    for (const file of candidates) {
+        try {
+            if (fs.existsSync(file)) {
+                const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch {}
+    }
+    throw new Error("Whitelist file is unavailable.");
 }
 
 function githubConfigured() {
-  return Boolean(
-    process.env.GITHUB_TOKEN &&
-    process.env.GITHUB_OWNER &&
-    process.env.GITHUB_REPO &&
-    process.env.GITHUB_WHITELIST_PATH
-  );
+    return Boolean(
+        process.env.GITHUB_TOKEN &&
+        process.env.GITHUB_OWNER &&
+        process.env.GITHUB_REPO &&
+        process.env.GITHUB_WHITELIST_PATH
+    );
 }
 
 async function githubWhitelist() {
-  const url = `https://api.github.com/repos/${encodeURIComponent(process.env.GITHUB_OWNER)}/${encodeURIComponent(process.env.GITHUB_REPO)}/contents/${process.env.GITHUB_WHITELIST_PATH}`;
-  const r = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "Flycer-License-API",
-    },
-    cache: "no-store",
-  });
-  if (!r.ok) throw new Error(`GitHub whitelist read failed: ${r.status}`);
-  const data = await r.json();
-  if (!data.content || !data.sha) throw new Error("GitHub whitelist response is invalid.");
-  const text = Buffer.from(data.content.replace(/\s/g, ""), "base64").toString("utf8");
-  const parsed = JSON.parse(text);
-  if (!Array.isArray(parsed)) throw new Error("Whitelist must be a JSON array.");
-  return { data: parsed, sha: data.sha };
+    const url = `https://api.github.com/repos/${encodeURIComponent(process.env.GITHUB_OWNER)}/${encodeURIComponent(process.env.GITHUB_REPO)}/contents/${process.env.GITHUB_WHITELIST_PATH}`;
+    const r = await fetch(url, {
+        headers: {
+            Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "Flycer-License-API",
+        },
+        cache: "no-store",
+    });
+    if (!r.ok) throw new Error(`GitHub whitelist read failed: ${r.status}`);
+    const data = await r.json();
+    if (!data.content || !data.sha) throw new Error("GitHub whitelist response is invalid.");
+    const text = Buffer.from(data.content.replace(/\s/g, ""), "base64").toString("utf8");
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) throw new Error("Whitelist must be a JSON array.");
+    return {
+        data: parsed,
+        sha: data.sha
+    };
 }
 
 async function saveGithubWhitelist(list, sha) {
-  const url = `https://api.github.com/repos/${encodeURIComponent(process.env.GITHUB_OWNER)}/${encodeURIComponent(process.env.GITHUB_REPO)}/contents/${process.env.GITHUB_WHITELIST_PATH}`;
-  const content = Buffer.from(JSON.stringify(list, null, 2) + "\n", "utf8").toString("base64");
-  const r = await fetch(url, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-      Accept: "application/vnd.github+json",
-      "Content-Type": "application/json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "Flycer-License-API",
-    },
-    body: JSON.stringify({
-      message: "chore: bind Flycer license identifier",
-      content,
-      sha,
-    }),
-  });
-  if (!r.ok) throw new Error(`GitHub whitelist write failed: ${r.status}`);
+    const url = `https://api.github.com/repos/${encodeURIComponent(process.env.GITHUB_OWNER)}/${encodeURIComponent(process.env.GITHUB_REPO)}/contents/${process.env.GITHUB_WHITELIST_PATH}`;
+    const content = Buffer.from(JSON.stringify(list, null, 2) + "\n", "utf8").toString("base64");
+    const r = await fetch(url, {
+        method: "PUT",
+        headers: {
+            Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "Flycer-License-API",
+        },
+        body: JSON.stringify({
+            message: "chore: bind Flycer license identifier",
+            content,
+            sha,
+        }),
+    });
+    if (!r.ok) throw new Error(`GitHub whitelist write failed: ${r.status}`);
 }
 
 async function loadWhitelist() {
-  if (githubConfigured()) return await githubWhitelist();
-  return { data: readLocalWhitelist(), sha: null };
+    if (githubConfigured()) return await githubWhitelist();
+    return {
+        data: readLocalWhitelist(),
+        sha: null
+    };
 }
 
 async function persistWhitelist(list, sha) {
-  if (githubConfigured()) return await saveGithubWhitelist(list, sha);
+    if (githubConfigured()) return await saveGithubWhitelist(list, sha);
 
-  // Local development fallback only. Vercel's serverless filesystem is not
-  // a persistent database, so production first-bind persistence should use
-  // the GitHub backend above or another persistent datastore.
-  const target = WHITELIST_LOCAL_PATH;
-  try {
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.writeFileSync(target, JSON.stringify(list, null, 2) + "\n", "utf8");
-  } catch (e) {
-    throw new Error("Whitelist cannot be persisted. Configure GitHub storage.");
-  }
+    // Local development fallback only. Vercel's serverless filesystem is not
+    // a persistent database, so production first-bind persistence should use
+    // the GitHub backend above or another persistent datastore.
+    const target = WHITELIST_LOCAL_PATH;
+    try {
+        fs.mkdirSync(path.dirname(target), {
+            recursive: true
+        });
+        fs.writeFileSync(target, JSON.stringify(list, null, 2) + "\n", "utf8");
+    } catch (e) {
+        throw new Error("Whitelist cannot be persisted. Configure GitHub storage.");
+    }
 }
 
 function licenseIsExpired(entry, nowSeconds) {
-  const type = String(entry.type || "duration").toLowerCase();
-  if (type === "free" || type === "lifetime") return false;
-  const exp = Number(entry.expire_timestamp);
-  return !Number.isFinite(exp) || exp <= nowSeconds;
+    const type = String(entry["type key"] || "duration").toLowerCase();
+    if (type === "free" || type === "lifetime") return false;
+    const exp = Number(entry["expiredkey_timestamp"]);
+    return !Number.isFinite(exp) || exp <= nowSeconds;
 }
 
 function safeLicenseInfo(entry, product, lockType) {
-  return {
-    product,
-    key_type: String(entry.type || "duration").toLowerCase(),
-    lock_type: lockType || "none",
-    expires_at: Number(entry.expire_timestamp) || 0,
-  };
+    return {
+        product,
+        key_type: String(entry["type key"] || "duration").toLowerCase(),
+        lock_type: lockType || "none",
+        expires_at: Number(entry["expiredkey_timestamp"]) || 0,
+    };
 }
 
 async function handleLicenseValidate(req, res) {
-  if (isBrowserRequest(req)) return sendBlocked(res);
+    if (isBrowserRequest(req)) return sendBlocked(res);
 
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return licenseError(res, 405, "METHOD_NOT_ALLOWED", "Only POST is allowed.");
-  }
+    if (req.method !== "POST") {
+        res.setHeader("Allow", "POST");
+        return licenseError(res, 405, "METHOD_NOT_ALLOWED", "Only POST is allowed.");
+    }
 
-  if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
+    if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
+        await jitterDelay();
+        return licenseError(res, 403, "REQUEST_REJECTED", "Request rejected.");
+    }
+
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(ip);
+    if (rl.limited) {
+        res.setHeader("Retry-After", String(rl.retryAfter));
+        return licenseError(res, 429, "RATE_LIMITED", "Too many requests. Try again later.");
+    }
+
+    const body = await parseBody(req);
+    if (!body || typeof body !== "object") {
+        return licenseError(res, 400, "BAD_REQUEST", "Invalid JSON body.");
+    }
+
+    // 'product' tetap diterima untuk keperluan display/log (mis. Tab Flycer Log),
+    // TAPI TIDAK dipakai untuk membatasi key. Whitelist.json versi ini tidak
+    // punya field product, artinya 1 key otomatis berlaku untuk SEMUA script
+    // yang menembak endpoint ini — cocok untuk multi-produk tanpa edit manual.
+    const product = String(body.product || "").trim();
+    const key = String(body.key || "").trim();
+    const lockType = normalizeLockType(body.lock_type);
+    const identifier = String(body.identifier || "").trim();
+    const client = String(body.client || "").trim();
+
+    if (!product || !key || !lockType || !identifier) {
+        return licenseError(res, 400, "MISSING_FIELDS", "product, key, lock_type and identifier are required.");
+    }
+    if (key.length > 256 || identifier.length > 512 || product.length > 128) {
+        return licenseError(res, 400, "INVALID_FIELDS", "One or more fields are too long.");
+    }
+
     await jitterDelay();
-    return licenseError(res, 403, "REQUEST_REJECTED", "Request rejected.");
-  }
 
-  const ip = getClientIp(req);
-  const rl = checkRateLimit(ip);
-  if (rl.limited) {
-    res.setHeader("Retry-After", String(rl.retryAfter));
-    return licenseError(res, 429, "RATE_LIMITED", "Too many requests. Try again later.");
-  }
-
-  const body = await parseBody(req);
-  if (!body || typeof body !== "object") {
-    return licenseError(res, 400, "BAD_REQUEST", "Invalid JSON body.");
-  }
-
-  const product = String(body.product || "").trim();
-  const key = String(body.key || "").trim();
-  const lockType = normalizeLockType(body.lock_type);
-  const identifier = String(body.identifier || "").trim();
-  const client = String(body.client || "").trim();
-
-  if (!product || !key || !lockType || !identifier) {
-    return licenseError(res, 400, "MISSING_FIELDS", "product, key, lock_type and identifier are required.");
-  }
-  if (key.length > 256 || identifier.length > 512 || product.length > 128) {
-    return licenseError(res, 400, "INVALID_FIELDS", "One or more fields are too long.");
-  }
-
-  await jitterDelay();
-
-  let loaded;
-  try {
-    loaded = await loadWhitelist();
-  } catch {
-    return licenseError(res, 503, "WHITELIST_UNAVAILABLE", "License service is temporarily unavailable.");
-  }
-
-  const list = loaded.data;
-  const now = Math.floor(Date.now() / 1000);
-
-  // Do not use Array.find() on key alone. A whitelist may contain legacy
-  // duplicate keys, so validation must evaluate the complete license record.
-  // A candidate is considered a match only when key + active + product +
-  // lock_type + expiry + identifier all agree. Empty HWID is allowed only
-  // for a first-use bind.
-  const keyEntries = list.filter(entry =>
-    entry && String(entry.key || "").trim() === key
-  );
-
-  if (keyEntries.length === 0) {
-    return licenseError(res, 404, "NOT_FOUND", "License key was not found.");
-  }
-
-  const matchingEntries = [];
-  const disabledEntries = [];
-  const expiredEntries = [];
-  const productMismatchEntries = [];
-  const lockMismatchEntries = [];
-  const identifierMismatchEntries = [];
-
-  for (const entry of keyEntries) {
-    if (entry.active !== true) {
-      disabledEntries.push(entry);
-      continue;
-    }
-
-    if (licenseIsExpired(entry, now)) {
-      expiredEntries.push(entry);
-      continue;
-    }
-
-    // Product is optional in legacy whitelist entries. When present, it must
-    // match the requested product or use '*'.
-    const entryProduct = String(entry.product || "*").trim();
-    if (entryProduct !== "*" && entryProduct !== product) {
-      productMismatchEntries.push(entry);
-      continue;
-    }
-
-    // Legacy entries without lock_type are treated as Device for compatibility.
-    const storedLockType = normalizeLockType(entry.lock_type) || "device";
-    if (storedLockType !== lockType) {
-      lockMismatchEntries.push(entry);
-      continue;
-    }
-
-    const storedIdentifier = String(entry.hwid || "").trim();
-
-    // An already-bound entry must match the caller's exact identifier.
-    // An empty HWID is a valid first-use binding candidate.
-    if (storedIdentifier !== "" && storedIdentifier !== identifier) {
-      identifierMismatchEntries.push(entry);
-      continue;
-    }
-
-    matchingEntries.push({
-      entry,
-      entryProduct,
-      storedLockType,
-      storedIdentifier,
-    });
-  }
-
-  // Prefer an already-bound exact identifier over an unbound duplicate key.
-  // This prevents a duplicate legacy record from stealing a valid license.
-  const selected =
-    matchingEntries.find(x => x.storedIdentifier === identifier) ||
-    matchingEntries.find(x => x.storedIdentifier === "");
-
-  if (!selected) {
-    if (disabledEntries.length === keyEntries.length) {
-      return licenseError(res, 403, "DISABLED", "License is disabled.");
-    }
-
-    if (expiredEntries.length > 0 &&
-        productMismatchEntries.length === 0 &&
-        lockMismatchEntries.length === 0 &&
-        identifierMismatchEntries.length === 0) {
-      return licenseError(res, 403, "EXPIRED", "License has expired.");
-    }
-
-    if (productMismatchEntries.length > 0 &&
-        productMismatchEntries.length === keyEntries.length - disabledEntries.length - expiredEntries.length) {
-      return licenseError(res, 403, "PRODUCT_MISMATCH", "This license is not valid for this product.");
-    }
-
-    if (lockMismatchEntries.length > 0 &&
-        lockMismatchEntries.length === keyEntries.length - disabledEntries.length - expiredEntries.length - productMismatchEntries.length) {
-      const expected = normalizeLockType(lockMismatchEntries[0].lock_type) || "device";
-      return licenseError(res, 403, "LOCK_TYPE_MISMATCH", `This license is locked as ${expected}.`);
-    }
-
-    if (identifierMismatchEntries.length > 0) {
-      return licenseError(
-        res,
-        403,
-        "IDENTIFIER_MISMATCH",
-        lockType === "username"
-          ? "This license is locked to another Roblox account."
-          : "This license is locked to another device."
-      );
-    }
-
-    return licenseError(res, 403, "INVALID_LICENSE", "License does not match the requested product, lock type, identifier, or validity period.");
-  }
-
-  const entry = selected.entry;
-  const entryProduct = selected.entryProduct;
-  const storedLockType = selected.storedLockType;
-  const storedIdentifier = selected.storedIdentifier;
-  const keyType = String(entry.type || "duration").toLowerCase();
-
-  // Free/public keys are intentionally not bound to an identifier.
-  if (keyType === "free") {
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    return res.status(200).json({
-      success: true,
-      code: "VALID",
-      message: "License validated successfully.",
-      license: safeLicenseInfo(entry, product, "none"),
-    });
-  }
-
-  if (!storedIdentifier) {
-    // First-use binding. Persist before reporting success so the lock is not
-    // lost after the serverless function terminates.
-    entry.hwid = identifier;
-    entry.lock_type = lockType;
-    entry.product = entryProduct;
-
+    let loaded;
     try {
-      await persistWhitelist(list, loaded.sha);
+        loaded = await loadWhitelist();
     } catch {
-      return licenseError(res, 503, "BIND_PERSIST_FAILED", "License could not be securely bound. Configure persistent whitelist storage.");
+        return licenseError(res, 503, "WHITELIST_UNAVAILABLE", "License service is temporarily unavailable.");
+    }
+
+    const list = loaded.data;
+    const now = Math.floor(Date.now() / 1000);
+
+    // Matching sekarang murni berdasarkan "user key" + "user hwid".
+    // Tidak ada lagi pengecekan product/lock_type terhadap data whitelist,
+    // sehingga 1 key otomatis kompatibel lintas semua script/produk.
+    const keyEntries = list.filter(entry =>
+        entry && String(entry["user key"] || "").trim() === key
+    );
+
+    if (keyEntries.length === 0) {
+        return licenseError(res, 404, "NOT_FOUND", "License key was not found.");
+    }
+
+    const matchingEntries = [];
+    const disabledEntries = [];
+    const expiredEntries = [];
+    const identifierMismatchEntries = [];
+
+    for (const entry of keyEntries) {
+        if (entry.active !== true) {
+            disabledEntries.push(entry);
+            continue;
+        }
+
+        if (licenseIsExpired(entry, now)) {
+            expiredEntries.push(entry);
+            continue;
+        }
+
+        const storedIdentifier = String(entry["user hwid"] || "").trim();
+
+        // Sudah pernah di-bind ke identifier lain -> tolak.
+        // Identifier kosong = kandidat first-use binding.
+        if (storedIdentifier !== "" && storedIdentifier !== identifier) {
+            identifierMismatchEntries.push(entry);
+            continue;
+        }
+
+        matchingEntries.push({
+            entry,
+            storedIdentifier
+        });
+    }
+
+    // Prioritaskan entry yang sudah exact-match dengan identifier pemanggil
+    // dibanding entry duplikat yang belum di-bind.
+    const selected =
+        matchingEntries.find(x => x.storedIdentifier === identifier) ||
+        matchingEntries.find(x => x.storedIdentifier === "");
+
+    if (!selected) {
+        if (disabledEntries.length === keyEntries.length) {
+            return licenseError(res, 403, "DISABLED", "License is disabled.");
+        }
+
+        if (expiredEntries.length > 0 && identifierMismatchEntries.length === 0) {
+            return licenseError(res, 403, "EXPIRED", "License has expired.");
+        }
+
+        if (identifierMismatchEntries.length > 0) {
+            return licenseError(
+                res,
+                403,
+                "IDENTIFIER_MISMATCH",
+                lockType === "username" ?
+                "This license is locked to another Roblox account." :
+                "This license is locked to another device."
+            );
+        }
+
+        return licenseError(res, 403, "INVALID_LICENSE", "License does not match the requested identifier or validity period.");
+    }
+
+    const entry = selected.entry;
+    const storedIdentifier = selected.storedIdentifier;
+    const keyType = String(entry["type key"] || "duration").toLowerCase();
+
+    // Free/public keys tidak dibatasi ke 1 identifier tertentu.
+    if (keyType === "free") {
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        return res.status(200).json({
+            success: true,
+            code: "VALID",
+            message: "License validated successfully.",
+            license: safeLicenseInfo(entry, product, "none"),
+        });
+    }
+
+    if (!storedIdentifier) {
+        // First-use binding. Persist sebelum melaporkan sukses agar lock
+        // tidak hilang setelah serverless function berhenti.
+        entry["user hwid"] = identifier;
+
+        try {
+            await persistWhitelist(list, loaded.sha);
+        } catch {
+            return licenseError(res, 503, "BIND_PERSIST_FAILED", "License could not be securely bound. Configure persistent whitelist storage.");
+        }
+
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        return res.status(200).json({
+            success: true,
+            code: "BOUND",
+            message: "License activated and bound successfully.",
+            license: safeLicenseInfo(entry, product, lockType),
+        });
     }
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     return res.status(200).json({
-      success: true,
-      code: "BOUND",
-      message: "License activated and bound successfully.",
-      license: safeLicenseInfo(entry, product, lockType),
+        success: true,
+        code: "VALID",
+        message: "License validated successfully.",
+        license: safeLicenseInfo(entry, product, lockType),
+        client: client || undefined,
     });
-  }
-
-  // At this point the selected record already matched the exact identifier.
-
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  return res.status(200).json({
-    success: true,
-    code: "VALID",
-    message: "License validated successfully.",
-    license: safeLicenseInfo(entry, product, lockType),
-    client: client || undefined,
-  });
 }
 
 function getRoute(req) {
-  const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
-  if (path === "/api/challenge")                         return "challenge";
-  if (path === "/api/license/validate")                 return "license";
-  if (path === "/api/gateway" || path === "/flycer")     return "gateway";
-  return "unknown";
+    const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
+    if (path === "/api/challenge") return "challenge";
+    if (path === "/api/license/validate") return "license";
+    if (path === "/api/gateway" || path === "/flycer") return "gateway";
+    return "unknown";
 }
 
 async function parseBody(req) {
-  if (req.body && typeof req.body === "object") return req.body;
-  return new Promise(resolve => {
-    let raw = "";
-    req.on("data",  c  => { raw += c; });
-    req.on("end",   () => { try { resolve(JSON.parse(raw)); } catch { resolve(null); } });
-    req.on("error", () => resolve(null));
-  });
+    if (req.body && typeof req.body === "object") return req.body;
+    return new Promise(resolve => {
+        let raw = "";
+        req.on("data", c => {
+            raw += c;
+        });
+        req.on("end", () => {
+            try {
+                resolve(JSON.parse(raw));
+            } catch {
+                resolve(null);
+            }
+        });
+        req.on("error", () => resolve(null));
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -945,51 +998,58 @@ async function parseBody(req) {
 
 async function handleChallenge(req, res) {
 
-  // L1: Browser check
-  if (isBrowserRequest(req)) return sendBlocked(res);
+    // L1: Browser check
+    if (isBrowserRequest(req)) return sendBlocked(res);
 
-  // L2: Method guard
-  if (!["GET", "HEAD"].includes(req.method)) {
-    res.setHeader("Allow", "GET, HEAD");
-    return res.status(405).end("-- method not allowed");
-  }
-
-  // L3: Suspicion score
-  if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
-    await jitterDelay();
-    return res.status(200).end("-- error");
-  }
-
-  // L4: Rate limit
-  const ip = getClientIp(req);
-  const rl = checkRateLimit(ip);
-  if (rl.limited) {
-    res.setHeader("Retry-After", String(rl.retryAfter));
-    return res.status(429).end("-- rate limited");
-  }
-
-  // HEAD → no body
-  if (req.method === "HEAD") return res.status(200).end();
-
-  // Trim store jika penuh
-  if (challengeStore.size >= CONFIG.challenge.maxStored) {
-    const now = Date.now();
-    for (const [id, d] of challengeStore) {
-      if (now - d.timestamp > CONFIG.challenge.expiryMs) challengeStore.delete(id);
+    // L2: Method guard
+    if (!["GET", "HEAD"].includes(req.method)) {
+        res.setHeader("Allow", "GET, HEAD");
+        return res.status(405).end("-- method not allowed");
     }
-  }
 
-  await jitterDelay();
+    // L3: Suspicion score
+    if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
+        await jitterDelay();
+        return res.status(200).end("-- error");
+    }
 
-  const nonce        = randomToken(24);
-  const challenge_id = randomHex(16);
-  const timestamp    = Date.now();
+    // L4: Rate limit
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(ip);
+    if (rl.limited) {
+        res.setHeader("Retry-After", String(rl.retryAfter));
+        return res.status(429).end("-- rate limited");
+    }
 
-  challengeStore.set(challenge_id, { nonce, timestamp });
-  setTimeout(() => challengeStore.delete(challenge_id), CONFIG.challenge.expiryMs * 2);
+    // HEAD → no body
+    if (req.method === "HEAD") return res.status(200).end();
 
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  return res.status(200).json({ challenge_id, nonce, timestamp });
+    // Trim store jika penuh
+    if (challengeStore.size >= CONFIG.challenge.maxStored) {
+        const now = Date.now();
+        for (const [id, d] of challengeStore) {
+            if (now - d.timestamp > CONFIG.challenge.expiryMs) challengeStore.delete(id);
+        }
+    }
+
+    await jitterDelay();
+
+    const nonce = randomToken(24);
+    const challenge_id = randomHex(16);
+    const timestamp = Date.now();
+
+    challengeStore.set(challenge_id, {
+        nonce,
+        timestamp
+    });
+    setTimeout(() => challengeStore.delete(challenge_id), CONFIG.challenge.expiryMs * 2);
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    return res.status(200).json({
+        challenge_id,
+        nonce,
+        timestamp
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -998,87 +1058,92 @@ async function handleChallenge(req, res) {
 
 async function handleGateway(req, res) {
 
-  // L1: Browser check
-  if (isBrowserRequest(req)) return sendBlocked(res);
+    // L1: Browser check
+    if (isBrowserRequest(req)) return sendBlocked(res);
 
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
 
-  // L2: Method guard
-  if (!["POST", "HEAD"].includes(req.method)) {
-    res.setHeader("Allow", "POST, HEAD");
-    return res.status(405).end("-- method not allowed");
-  }
+    // L2: Method guard
+    if (!["POST", "HEAD"].includes(req.method)) {
+        res.setHeader("Allow", "POST, HEAD");
+        return res.status(405).end("-- method not allowed");
+    }
 
-  // L3: Suspicion score
-  if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
-    await jitterDelay();
-    return res.status(200).end("-- error");
-  }
+    // L3: Suspicion score
+    if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
+        await jitterDelay();
+        return res.status(200).end("-- error");
+    }
 
-  // L4: Rate limit
-  const ip = getClientIp(req);
-  const rl = checkRateLimit(ip);
-  if (rl.limited) {
-    res.setHeader("Retry-After", String(rl.retryAfter));
-    return res.status(429).end("-- rate limited");
-  }
+    // L4: Rate limit
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(ip);
+    if (rl.limited) {
+        res.setHeader("Retry-After", String(rl.retryAfter));
+        return res.status(429).end("-- rate limited");
+    }
 
-  // HEAD → no body
-  if (req.method === "HEAD") return res.status(200).end();
+    // HEAD → no body
+    if (req.method === "HEAD") return res.status(200).end();
 
-  // L5: Parse body
-  const body = await parseBody(req);
-  if (!body) return res.status(400).end("-- bad request");
+    // L5: Parse body
+    const body = await parseBody(req);
+    if (!body) return res.status(400).end("-- bad request");
 
-  const { challenge_id, nonce, timestamp, signature } = body;
+    const {
+        challenge_id,
+        nonce,
+        timestamp,
+        signature
+    } = body;
 
-  // L6: Required fields
-  if (!challenge_id || !nonce || !timestamp || !signature) {
-    return res.status(400).end("-- missing fields");
-  }
+    // L6: Required fields
+    if (!challenge_id || !nonce || !timestamp || !signature) {
+        return res.status(400).end("-- missing fields");
+    }
 
-  // L7: Timestamp type
-  const ts = Number(timestamp);
-  if (!Number.isFinite(ts) || ts <= 0) {
-    return res.status(400).end("-- invalid timestamp");
-  }
+    // L7: Timestamp type
+    const ts = Number(timestamp);
+    if (!Number.isFinite(ts) || ts <= 0) {
+        return res.status(400).end("-- invalid timestamp");
+    }
 
-  // L8: Challenge lookup (anti-replay)
-  const stored = challengeStore.get(challenge_id);
-  if (!stored) {
-    await jitterDelay();
-    return res.status(403).end("-- challenge expired");
-  }
+    // L8: Challenge lookup (anti-replay)
+    const stored = challengeStore.get(challenge_id);
+    if (!stored) {
+        await jitterDelay();
+        return res.status(403).end("-- challenge expired");
+    }
 
-  // L9: Nonce match
-  if (stored.nonce !== nonce) {
+    // L9: Nonce match
+    if (stored.nonce !== nonce) {
+        challengeStore.delete(challenge_id);
+        await jitterDelay();
+        return res.status(403).end("-- invalid nonce");
+    }
+
+    // L10: Freshness check (max 15 detik)
+    const age = Date.now() - ts;
+    if (age < 0 || age > CONFIG.challenge.expiryMs) {
+        challengeStore.delete(challenge_id);
+        await jitterDelay();
+        return res.status(403).end("-- challenge expired");
+    }
+
+    // L11: HMAC signature (timing-safe)
+    if (!verifySignature(nonce, ts, challenge_id, signature)) {
+        challengeStore.delete(challenge_id);
+        await jitterDelay();
+        return res.status(403).end("-- invalid signature");
+    }
+
+    // L12: Consume challenge (one-time use)
     challengeStore.delete(challenge_id);
+
     await jitterDelay();
-    return res.status(403).end("-- invalid nonce");
-  }
 
-  // L10: Freshness check (max 15 detik)
-  const age = Date.now() - ts;
-  if (age < 0 || age > CONFIG.challenge.expiryMs) {
-    challengeStore.delete(challenge_id);
-    await jitterDelay();
-    return res.status(403).end("-- challenge expired");
-  }
-
-  // L11: HMAC signature (timing-safe)
-  if (!verifySignature(nonce, ts, challenge_id, signature)) {
-    challengeStore.delete(challenge_id);
-    await jitterDelay();
-    return res.status(403).end("-- invalid signature");
-  }
-
-  // L12: Consume challenge (one-time use)
-  challengeStore.delete(challenge_id);
-
-  await jitterDelay();
-
-  // L13: Build & deliver loader
-  return res.status(200).end(buildLoader());
+    // L13: Build & deliver loader
+    return res.status(200).end(buildLoader());
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1086,14 +1151,14 @@ async function handleGateway(req, res) {
 // ══════════════════════════════════════════════════════════════════════════
 
 export default async function handler(req, res) {
-  applyBaseHeaders(res);
+    applyBaseHeaders(res);
 
-  const route = getRoute(req);
-  if (route === "challenge") return handleChallenge(req, res);
-  if (route === "license")   return handleLicenseValidate(req, res);
-  if (route === "gateway")   return handleGateway(req, res);
+    const route = getRoute(req);
+    if (route === "challenge") return handleChallenge(req, res);
+    if (route === "license") return handleLicenseValidate(req, res);
+    if (route === "gateway") return handleGateway(req, res);
 
-  // Unknown route
-  if (isBrowserRequest(req)) return sendBlocked(res);
-  return res.status(404).end("-- not found");
+    // Unknown route
+    if (isBrowserRequest(req)) return sendBlocked(res);
+    return res.status(404).end("-- not found");
 }
