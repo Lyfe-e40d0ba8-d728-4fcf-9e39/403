@@ -1,18 +1,9 @@
-// ══════════════════════════════════════════════════════════════════════════
-//  FLYCER GATEWAY v8.2 (Multi-Device HWID Support)
-//  AES-256-CBC (server encrypt) + XOR obfuscation + pure Lua AES decrypt
-//  Challenge-response · Anti-bot · Anti-browser · Rate limit
-//
-//  CHANGELOG v8.2:
-//  - "user hwid" sekarang mendukung ARRAY (multi-device binding)
-//  - Tambah field "max_devices" per key (default: 1)
-//  - Response license sekarang menyertakan devices_used & devices_limit
-//  - Reset HWID buyer cukup kosongkan array "user hwid": [] di whitelist.json
-// ══════════════════════════════════════════════════════════════════════════
-
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import {
+    LOADERS
+} from "./loader.js";
 
 // ══════════════════════════════════════════════════════════════════════════
 //  CONFIG
@@ -24,11 +15,6 @@ const CONFIG = {
     secrets: {
         hmacKey: process.env.HMAC_KEY || "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
         aesKey: process.env.AES_KEY || "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",
-    },
-
-    // ── Loader URL ────────────────────────────────────────────────────────
-    loader: {
-        url: "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/Main/refs/heads/main/Test",
     },
 
     // ── Challenge ─────────────────────────────────────────────────────────
@@ -134,7 +120,7 @@ const CONFIG = {
 //  IN-MEMORY STORES
 // ══════════════════════════════════════════════════════════════════════════
 
-const challengeStore = new Map(); // Map<id, { nonce, timestamp }>
+const challengeStore = new Map(); // Map<id, { nonce, timestamp, loaderKey }>
 const rateLimitStore = new Map(); // Map<ip, { count, windowStart }>
 
 setInterval(() => {
@@ -316,11 +302,13 @@ function luaVar() {
 
 // ══════════════════════════════════════════════════════════════════════════
 //  LUA LOADER BUILDER
+//  [CHANGED] Sekarang menerima 'url' sebagai parameter, TIDAK LAGI
+//  membaca dari CONFIG.loader.url yang hardcoded. URL didapat dari
+//  lookup LOADERS registry (loader.js) berdasarkan loaderKey yang
+//  sudah diikat ke challenge sebelumnya.
 // ══════════════════════════════════════════════════════════════════════════
 
-function buildLoader() {
-    const url = CONFIG.loader.url;
-
+function buildLoader(url) {
     const {
         key: aesKeyBytes,
         iv: aesIvBytes,
@@ -436,6 +424,31 @@ ${v.fn}()
 ${v.fn}=nil
 ${v.t0}=nil
 collectgarbage("collect")${j()}`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  LOADER KEY VALIDATION (dipakai untuk parameter ?loader= di /api/challenge)
+// ══════════════════════════════════════════════════════════════════════════
+
+function isValidLoaderKey(key) {
+    return typeof key === "string" && /^[\w.-]+\/[\w.-]+$/.test(key);
+}
+
+function resolveLoaderEntry(key) {
+    if (!isValidLoaderKey(key)) return {
+        status: "invalid"
+    };
+    const entry = LOADERS[key];
+    if (!entry) return {
+        status: "not_found"
+    };
+    if (entry.active === false) return {
+        status: "disabled"
+    };
+    return {
+        status: "ok",
+        entry
+    };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -757,9 +770,6 @@ async function loadWhitelist() {
 async function persistWhitelist(list, sha) {
     if (githubConfigured()) return await saveGithubWhitelist(list, sha);
 
-    // Local development fallback only. Vercel's serverless filesystem is not
-    // a persistent database, so production first-bind persistence should use
-    // the GitHub backend above or another persistent datastore.
     const target = WHITELIST_LOCAL_PATH;
     try {
         fs.mkdirSync(path.dirname(target), {
@@ -771,7 +781,6 @@ async function persistWhitelist(list, sha) {
     }
 }
 
-// ── [NEW] Normalisasi HWID: dukung format lama (string) & baru (array) ────
 function normalizeHwidList(entry) {
     const raw = entry["user hwid"];
     if (Array.isArray(raw)) {
@@ -783,7 +792,6 @@ function normalizeHwidList(entry) {
     return [];
 }
 
-// ── [NEW] Batas maksimal device per key (default: 1) ───────────────────────
 function getMaxDevices(entry) {
     const n = Number(entry.max_devices);
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
@@ -796,7 +804,6 @@ function licenseIsExpired(entry, nowSeconds) {
     return !Number.isFinite(exp) || exp <= nowSeconds;
 }
 
-// ── [UPDATED] Sertakan devices_used & devices_limit di response ───────────
 function safeLicenseInfo(entry, product, lockType) {
     const hwidList = normalizeHwidList(entry);
     return {
@@ -809,7 +816,6 @@ function safeLicenseInfo(entry, product, lockType) {
     };
 }
 
-// ── [UPDATED] handleLicenseValidate dengan multi-device binding ───────────
 async function handleLicenseValidate(req, res) {
     if (isBrowserRequest(req)) return sendBlocked(res);
 
@@ -835,9 +841,6 @@ async function handleLicenseValidate(req, res) {
         return licenseError(res, 400, "BAD_REQUEST", "Invalid JSON body.");
     }
 
-    // 'product' diterima untuk keperluan display/log (Tab Flycer Log),
-    // TAPI TIDAK dipakai untuk membatasi key. 1 key otomatis berlaku
-    // untuk SEMUA script/produk yang menembak endpoint ini.
     const product = String(body.product || "").trim();
     const key = String(body.key || "").trim();
     const lockType = normalizeLockType(body.lock_type);
@@ -897,7 +900,6 @@ async function handleLicenseValidate(req, res) {
     const entry = candidate;
     const keyType = String(entry["type key"] || "duration").toLowerCase();
 
-    // Free/public key: tidak dibatasi ke device manapun sama sekali.
     if (keyType === "free") {
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         return res.status(200).json({
@@ -912,7 +914,6 @@ async function handleLicenseValidate(req, res) {
     const hwidList = normalizeHwidList(entry);
     const maxDevices = getMaxDevices(entry);
 
-    // Device sudah pernah di-bind sebelumnya -> langsung valid.
     if (hwidList.includes(identifier)) {
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         return res.status(200).json({
@@ -924,7 +925,6 @@ async function handleLicenseValidate(req, res) {
         });
     }
 
-    // Device baru, tapi slot sudah penuh -> tolak.
     if (hwidList.length >= maxDevices) {
         return licenseError(
             res,
@@ -934,7 +934,6 @@ async function handleLicenseValidate(req, res) {
         );
     }
 
-    // First-use / tambahan device baru -> bind & persist ke whitelist.
     entry["user hwid"] = [...hwidList, identifier];
 
     try {
@@ -961,6 +960,15 @@ function getRoute(req) {
     return "unknown";
 }
 
+function getQueryParam(req, name) {
+    try {
+        const u = new URL(req.url, "http://localhost");
+        return u.searchParams.get(name);
+    } catch {
+        return null;
+    }
+}
+
 async function parseBody(req) {
     if (req.body && typeof req.body === "object") return req.body;
     return new Promise(resolve => {
@@ -980,23 +988,27 @@ async function parseBody(req) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  HANDLER — GET /api/challenge
+//  HANDLER — GET /api/challenge?loader=vX/namaKey
 // ══════════════════════════════════════════════════════════════════════════
 
 async function handleChallenge(req, res) {
 
+    // L1: Browser check
     if (isBrowserRequest(req)) return sendBlocked(res);
 
+    // L2: Method guard
     if (!["GET", "HEAD"].includes(req.method)) {
         res.setHeader("Allow", "GET, HEAD");
         return res.status(405).end("-- method not allowed");
     }
 
+    // L3: Suspicion score
     if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
         await jitterDelay();
         return res.status(200).end("-- error");
     }
 
+    // L4: Rate limit
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip);
     if (rl.limited) {
@@ -1004,8 +1016,25 @@ async function handleChallenge(req, res) {
         return res.status(429).end("-- rate limited");
     }
 
+    // L5: [NEW] Loader key wajib ada & valid, diambil dari registry loader.js
+    const loaderKeyRaw = getQueryParam(req, "loader");
+    const loaderKey = loaderKeyRaw ? decodeURIComponent(loaderKeyRaw) : null;
+    const resolved = resolveLoaderEntry(loaderKey);
+
+    if (resolved.status === "invalid") {
+        return res.status(400).end("-- missing or invalid loader parameter");
+    }
+    if (resolved.status === "not_found") {
+        return res.status(404).end("-- loader not found");
+    }
+    if (resolved.status === "disabled") {
+        return res.status(403).end("-- loader disabled");
+    }
+
+    // HEAD → no body
     if (req.method === "HEAD") return res.status(200).end();
 
+    // Trim store jika penuh
     if (challengeStore.size >= CONFIG.challenge.maxStored) {
         const now = Date.now();
         for (const [id, d] of challengeStore) {
@@ -1019,9 +1048,13 @@ async function handleChallenge(req, res) {
     const challenge_id = randomHex(16);
     const timestamp = Date.now();
 
+    // [NEW] loaderKey diikat ke challenge_id di server. Saat POST
+    // /api/gateway datang, server TIDAK percaya loader dari body client,
+    // melainkan ambil dari sini — mencegah pemalsuan pilihan loader.
     challengeStore.set(challenge_id, {
         nonce,
-        timestamp
+        timestamp,
+        loaderKey
     });
     setTimeout(() => challengeStore.delete(challenge_id), CONFIG.challenge.expiryMs * 2);
 
@@ -1039,20 +1072,24 @@ async function handleChallenge(req, res) {
 
 async function handleGateway(req, res) {
 
+    // L1: Browser check
     if (isBrowserRequest(req)) return sendBlocked(res);
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
 
+    // L2: Method guard
     if (!["POST", "HEAD"].includes(req.method)) {
         res.setHeader("Allow", "POST, HEAD");
         return res.status(405).end("-- method not allowed");
     }
 
+    // L3: Suspicion score
     if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
         await jitterDelay();
         return res.status(200).end("-- error");
     }
 
+    // L4: Rate limit
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip);
     if (rl.limited) {
@@ -1060,8 +1097,10 @@ async function handleGateway(req, res) {
         return res.status(429).end("-- rate limited");
     }
 
+    // HEAD → no body
     if (req.method === "HEAD") return res.status(200).end();
 
+    // L5: Parse body
     const body = await parseBody(req);
     if (!body) return res.status(400).end("-- bad request");
 
@@ -1072,27 +1111,32 @@ async function handleGateway(req, res) {
         signature
     } = body;
 
+    // L6: Required fields
     if (!challenge_id || !nonce || !timestamp || !signature) {
         return res.status(400).end("-- missing fields");
     }
 
+    // L7: Timestamp type
     const ts = Number(timestamp);
     if (!Number.isFinite(ts) || ts <= 0) {
         return res.status(400).end("-- invalid timestamp");
     }
 
+    // L8: Challenge lookup (anti-replay)
     const stored = challengeStore.get(challenge_id);
     if (!stored) {
         await jitterDelay();
         return res.status(403).end("-- challenge expired");
     }
 
+    // L9: Nonce match
     if (stored.nonce !== nonce) {
         challengeStore.delete(challenge_id);
         await jitterDelay();
         return res.status(403).end("-- invalid nonce");
     }
 
+    // L10: Freshness check (max 15 detik)
     const age = Date.now() - ts;
     if (age < 0 || age > CONFIG.challenge.expiryMs) {
         challengeStore.delete(challenge_id);
@@ -1100,17 +1144,29 @@ async function handleGateway(req, res) {
         return res.status(403).end("-- challenge expired");
     }
 
+    // L11: HMAC signature (timing-safe)
     if (!verifySignature(nonce, ts, challenge_id, signature)) {
         challengeStore.delete(challenge_id);
         await jitterDelay();
         return res.status(403).end("-- invalid signature");
     }
 
+    // L12: [NEW] Ambil loaderKey yang SUDAH diikat sejak /api/challenge,
+    // lookup ulang ke registry (jaga-jaga kalau di-nonaktifkan setelah
+    // challenge dibuat), lalu konsumsi challenge (one-time use).
+    const loaderKey = stored.loaderKey;
     challengeStore.delete(challenge_id);
+
+    const resolved = resolveLoaderEntry(loaderKey);
+    if (resolved.status !== "ok") {
+        await jitterDelay();
+        return res.status(404).end("-- loader not found");
+    }
 
     await jitterDelay();
 
-    return res.status(200).end(buildLoader());
+    // L13: Build & deliver loader untuk URL yang sesuai
+    return res.status(200).end(buildLoader(resolved.entry.url));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1125,6 +1181,7 @@ export default async function handler(req, res) {
     if (route === "license") return handleLicenseValidate(req, res);
     if (route === "gateway") return handleGateway(req, res);
 
+    // Unknown route
     if (isBrowserRequest(req)) return sendBlocked(res);
     return res.status(404).end("-- not found");
 }
