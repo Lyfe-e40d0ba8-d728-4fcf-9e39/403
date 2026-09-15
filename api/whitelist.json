@@ -1,7 +1,8 @@
 [
   {
     "user key": "Test key duration",
-    "user hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
+    "user hwid": ["c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92"],
+    "max_devices": 1,
     "type key": "duration",
     "expiredkey_timestamp": 1789577940,
     "note": "Key pemilik dari Kyoukara",
@@ -9,15 +10,17 @@
   },
   {
     "user key": "Test key lifetime",
-    "user hwid": "c12538154a787165566d0f746bac15727ebc45a974bb00a40a003af4ecde9c92",
+    "user hwid": [],
+    "max_devices": 2,
     "type key": "lifetime",
     "expiredkey_timestamp": 0,
-    "note": "Key pemilik dari Marcel",
+    "note": "Key pemilik dari Marcel - boleh dipakai di 2 device",
     "active": true
   },
   {
     "user key": "Test key free",
-    "user hwid": "",
+    "user hwid": [],
+    "max_devices": 9999,
     "type key": "free",
     "expiredkey_timestamp": 0,
     "note": "Key pemilik dari Ray",
