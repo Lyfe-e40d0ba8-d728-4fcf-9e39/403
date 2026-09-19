@@ -847,8 +847,8 @@ async function handleLicenseValidate(req, res) {
     const identifier = String(body.identifier || "").trim();
     const client = String(body.client || "").trim();
 
-    if (!key || !lockType || !identifier) {
-    return licenseError(res, 400, "MISSING_FIELDS", "key, lock_type and identifier are required.");
+    if (!product || !key || !lockType || !identifier) {
+        return licenseError(res, 400, "MISSING_FIELDS", "product, key, lock_type and identifier are required.");
     }
     if (key.length > 256 || identifier.length > 512 || product.length > 128) {
         return licenseError(res, 400, "INVALID_FIELDS", "One or more fields are too long.");
@@ -991,24 +991,19 @@ async function parseBody(req) {
 //  HANDLER — GET /api/challenge?loader=vX/namaKey
 // ══════════════════════════════════════════════════════════════════════════
 
+// handleChallenge — ubah L5 agar loader opsional
 async function handleChallenge(req, res) {
 
-    // L1: Browser check
     if (isBrowserRequest(req)) return sendBlocked(res);
-
-    // L2: Method guard
     if (!["GET", "HEAD"].includes(req.method)) {
         res.setHeader("Allow", "GET, HEAD");
         return res.status(405).end("-- method not allowed");
     }
-
-    // L3: Suspicion score
     if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
         await jitterDelay();
         return res.status(200).end("-- error");
     }
 
-    // L4: Rate limit
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip);
     if (rl.limited) {
@@ -1016,25 +1011,12 @@ async function handleChallenge(req, res) {
         return res.status(429).end("-- rate limited");
     }
 
-    // L5: [NEW] Loader key wajib ada & valid, diambil dari registry loader.js
+    // [DIUBAH] loader sekarang opsional — tidak wajib ada
     const loaderKeyRaw = getQueryParam(req, "loader");
-    const loaderKey = loaderKeyRaw ? decodeURIComponent(loaderKeyRaw) : null;
-    const resolved = resolveLoaderEntry(loaderKey);
+    const loaderKey    = loaderKeyRaw ? decodeURIComponent(loaderKeyRaw) : null;
 
-    if (resolved.status === "invalid") {
-        return res.status(400).end("-- missing or invalid loader parameter");
-    }
-    if (resolved.status === "not_found") {
-        return res.status(404).end("-- loader not found");
-    }
-    if (resolved.status === "disabled") {
-        return res.status(403).end("-- loader disabled");
-    }
-
-    // HEAD → no body
     if (req.method === "HEAD") return res.status(200).end();
 
-    // Trim store jika penuh
     if (challengeStore.size >= CONFIG.challenge.maxStored) {
         const now = Date.now();
         for (const [id, d] of challengeStore) {
@@ -1044,26 +1026,16 @@ async function handleChallenge(req, res) {
 
     await jitterDelay();
 
-    const nonce = randomToken(24);
+    const nonce        = randomToken(24);
     const challenge_id = randomHex(16);
-    const timestamp = Date.now();
+    const timestamp    = Date.now();
 
-    // [NEW] loaderKey diikat ke challenge_id di server. Saat POST
-    // /api/gateway datang, server TIDAK percaya loader dari body client,
-    // melainkan ambil dari sini — mencegah pemalsuan pilihan loader.
-    challengeStore.set(challenge_id, {
-        nonce,
-        timestamp,
-        loaderKey
-    });
+    // loaderKey disimpan, bisa null jika tidak dikirim
+    challengeStore.set(challenge_id, { nonce, timestamp, loaderKey });
     setTimeout(() => challengeStore.delete(challenge_id), CONFIG.challenge.expiryMs * 2);
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    return res.status(200).json({
-        challenge_id,
-        nonce,
-        timestamp
-    });
+    return res.status(200).json({ challenge_id, nonce, timestamp });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
