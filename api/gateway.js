@@ -847,8 +847,8 @@ async function handleLicenseValidate(req, res) {
     const identifier = String(body.identifier || "").trim();
     const client = String(body.client || "").trim();
 
-    if (!product || !key || !lockType || !identifier) {
-        return licenseError(res, 400, "MISSING_FIELDS", "product, key, lock_type and identifier are required.");
+    if (!key || !lockType || !identifier) {
+    return licenseError(res, 400, "MISSING_FIELDS", "key, lock_type and identifier are required.");
     }
     if (key.length > 256 || identifier.length > 512 || product.length > 128) {
         return licenseError(res, 400, "INVALID_FIELDS", "One or more fields are too long.");
