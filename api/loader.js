@@ -8,12 +8,6 @@ export const LOADERS = {
   // active: false = return 403, true = aktif
   // note  : deskripsi (tidak dikirim ke client)
 
-  "v2/78b01ba5f0f6407caea1d6880d7931f0": {
-    url:    "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/403/main/api/whitelist.json",
-    active: true,
-    note:   "Car Controller for Mobile Universal",
-  },
-
   "v2/ae3a52604adf": {
     url:    "https://raw.githubusercontent.com/Lyfe-e40d0ba8-d728-4fcf-9e39/supported-b045ccea-1f23-4201-866b-0b3c3381cdba/main/CarControllerUniversal",
     active: true,
