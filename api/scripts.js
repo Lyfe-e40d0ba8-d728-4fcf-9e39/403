@@ -1,157 +1,199 @@
 import crypto from "crypto";
-import { LOADERS } from "./loader.js";
+import {
+    LOADERS
+} from "./loader.js";
 
-//  CONFIG
+//  CONFIGS
 const CONFIG = {
-  rateLimit: {
-    windowMs: 60_000,
-    maxRequests: 15, // Dinaikkan sedikit untuk mencegah rate-limit palsu saat testing
-  },
-  suspicion: { blockScore: 12 },
-  jitter: { minMs: 35, maxMs: 110 },
-
-  page: {
-    title: "Access Denied | Flycer Developments",
-    badge: "403 Forbidden",
-    heading: { prefix: "ACCESS", highlight: "DENIED" },
-    subtitle: [
-      "This endpoint is restricted.",
-      "Browser access is not permitted on this route.",
-    ],
-    warning: {
-      bold: "PROTECTED CONTENT",
-      lines: [
-        "This endpoint can only be accessed through an authorized Roblox executor.",
-        "Browser access is blocked for security reasons.",
-      ],
+    rateLimit: {
+        windowMs: 60_000,
+        maxRequests: 12,
     },
-    footer: "Flycer Loader · Restricted Access",
-  },
+    suspicion: {
+        blockScore: 12
+    },
+    jitter: {
+        minMs: 35,
+        maxMs: 110
+    },
 
-  fonts: {
-    body: "'Inter', sans-serif",
-    mono: "'JetBrains Mono', monospace",
-    url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
-  },
-  tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+    page: {
+        title: "Access Denied | Flycer Developments",
+        badge: "403 Forbidden",
+        heading: {
+            prefix: "ACCESS",
+            highlight: "DENIED"
+        },
+        subtitle: [
+            "This endpoint is restricted.",
+            "Browser access is not permitted on this route.",
+        ],
+        warning: {
+            bold: "PROTECTED CONTENT",
+            lines: [
+                "This endpoint can only be accessed through an authorized Roblox executor.",
+                "Browser access is blocked for security reasons.",
+            ],
+        },
+        footer: "Flycer Loader · Restricted Access",
+    },
 
-  browser: {
-    uaKeywords: [
-      "mozilla","chrome","safari","firefox","edge","opera","brave",
-      "vivaldi","webkit","gecko","trident","msie","headlesschrome",
-      "phantomjs","selenium","puppeteer","playwright","curl","wget",
-      "httpie","postman","insomnia","axios","python-requests","go-http",
-      "java/","libwww","perl","ruby","bot","spider","crawl","googlebot",
-      "bingbot","yandex","baidu","facebookexternalhit","twitterbot",
-      "discord","telegram","whatsapp","slack",
-    ],
-    uaAllowlist: ["roblox"],
-    blockHeaders: [
-      "sec-ch-ua","sec-ch-ua-mobile","sec-ch-ua-platform",
-      "sec-fetch-dest","sec-fetch-mode","sec-fetch-site",
-      "sec-fetch-user","upgrade-insecure-requests",
-    ],
-  },
+    fonts: {
+        body: "'Inter', sans-serif",
+        mono: "'JetBrains Mono', monospace",
+        url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
+    },
+    tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
 
-  executor: {
-    penaltyHeaders: [
-      { header: "referer",  score: 3 },
-      { header: "referrer", score: 3 },
-      { header: "origin",   score: 3 },
-      { header: "cookie",   score: 4 },
-    ],
-    penalties: { emptyUA: 5, shortUA: 3, longUA: 2 },
-  },
+    browser: {
+        uaKeywords: [
+            "mozilla", "chrome", "safari", "firefox", "edge", "opera", "brave",
+            "vivaldi", "webkit", "gecko", "trident", "msie", "headlesschrome",
+            "phantomjs", "selenium", "puppeteer", "playwright", "curl", "wget",
+            "httpie", "postman", "insomnia", "axios", "python-requests", "go-http",
+            "java/", "libwww", "perl", "ruby", "bot", "spider", "crawl", "googlebot",
+            "bingbot", "yandex", "baidu", "facebookexternalhit", "twitterbot",
+            "discord", "telegram", "whatsapp", "slack",
+        ],
+        uaAllowlist: ["roblox"],
+        blockHeaders: [
+            "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+            "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
+            "sec-fetch-user", "upgrade-insecure-requests",
+        ],
+    },
+
+    executor: {
+        penaltyHeaders: [{
+                header: "referer",
+                score: 3
+            },
+            {
+                header: "referrer",
+                score: 3
+            },
+            {
+                header: "origin",
+                score: 3
+            },
+            {
+                header: "cookie",
+                score: 4
+            },
+        ],
+        penalties: {
+            emptyUA: 5,
+            shortUA: 3,
+            longUA: 2
+        },
+    },
 };
 
 //  IN-MEMORY STORE
 const rateLimitStore = new Map();
 
 setInterval(() => {
-  const now = Date.now();
-  for (const [ip, d] of rateLimitStore) {
-    if (now - d.windowStart > CONFIG.rateLimit.windowMs * 2) {
-      rateLimitStore.delete(ip);
+    const now = Date.now();
+    for (const [ip, d] of rateLimitStore) {
+        if (now - d.windowStart > CONFIG.rateLimit.windowMs * 2) {
+            rateLimitStore.delete(ip);
+        }
     }
-  }
 }, 30_000);
 
 //  CRYPTO HELPERS
 function randomHex(n = 10) {
-  return crypto.randomBytes(n).toString("hex");
+    return crypto.randomBytes(n).toString("hex");
 }
 
 function buildSubTable() {
-  const tbl = Array.from({ length: 256 }, (_, i) => i);
-  for (let i = 255; i > 0; i--) {
-    const j = crypto.randomInt(0, i + 1);
-    [tbl[i], tbl[j]] = [tbl[j], tbl[i]];
-  }
-  const inv = new Array(256);
-  tbl.forEach((v, k) => { inv[v] = k; });
-  return { fwd: tbl, inv };
+    const tbl = Array.from({
+        length: 256
+    }, (_, i) => i);
+    for (let i = 255; i > 0; i--) {
+        const j = crypto.randomInt(0, i + 1);
+        [tbl[i], tbl[j]] = [tbl[j], tbl[i]];
+    }
+    const inv = new Array(256);
+    tbl.forEach((v, k) => {
+        inv[v] = k;
+    });
+    return {
+        fwd: tbl,
+        inv
+    };
 }
 
+// Encrypt payload
 function encryptPayload(source) {
-  const payloadBytes = Array.from(Buffer.from(source, "utf8"));
-  const xorKey = crypto.randomBytes(16);
-  const { fwd, inv } = buildSubTable();
+    const payloadBytes = Array.from(Buffer.from(source, "utf8"));
+    const xorKey = crypto.randomBytes(16);
+    const {
+        fwd,
+        inv
+    } = buildSubTable();
 
-  const layer1 = payloadBytes.map(b => fwd[b]);
-  const layer2 = layer1.map((b, i) => b ^ xorKey[i % xorKey.length]);
+    const layer1 = payloadBytes.map(b => fwd[b]);
+    const layer2 = layer1.map((b, i) => b ^ xorKey[i % xorKey.length]);
 
-  return {
-    ciphertext: layer2,
-    xorKey: Array.from(xorKey),
-    invSub: inv
-  };
+    return {
+        ciphertext: layer2,
+        xorKey: Array.from(xorKey),
+        invSub: inv
+    };
 }
 
 function luaVar() {
-  const alpha = "abcdefghijklmnopqrstuvwxyz";
-  const l = alpha[Math.floor(Math.random() * 26)];
-  return `_${l}${crypto.randomBytes(4).toString("hex")}`;
+    const alpha = "abcdefghijklmnopqrstuvwxyz";
+    const l = alpha[Math.floor(Math.random() * 26)];
+    return `_${l}${crypto.randomBytes(4).toString("hex")}`;
 }
 
 function j() {
-  return `--[[${randomHex(6)}]]`;
+    return `--[[${randomHex(6)}]]`;
 }
 
+// Helper untuk memecah data payload biner menjadi representasi string Lua agar memori hemat
 function toLuaEscapedChunks(bytes, varName) {
-  const chunkSize = 250;
-  const lines = [];
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.slice(i, i + chunkSize);
-    const escaped = chunk.map(b => `\\${b}`).join("");
-    if (i === 0) {
-      lines.push(`local ${varName} = "${escaped}"`);
-    } else {
-      lines.push(`${varName} = ${varName} .. "${escaped}"`);
+    const chunkSize = 250;
+    const lines = [];
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.slice(i, i + chunkSize);
+        const escaped = chunk.map(b => `\\${b}`).join("");
+        if (i === 0) {
+            lines.push(`local ${varName} = "${escaped}"`);
+        } else {
+            lines.push(`${varName} = ${varName} .. "${escaped}"`);
+        }
     }
-  }
-  return lines.join("\n");
+    return lines.join("\n");
 }
 
+//  IN-MEMORY DECRYPTION
 function buildLoader(rawSource) {
-  const { ciphertext, xorKey, invSub } = encryptPayload(rawSource);
+    const {
+        ciphertext,
+        xorKey,
+        invSub
+    } = encryptPayload(rawSource);
 
-  const v = {
-    cipherVar: luaVar(),
-    keyVar: luaVar(),
-    subVar: luaVar(),
-    decryptedVar: luaVar(),
-    fnVar: luaVar(),
-    decryptFn: luaVar(),
-    t0: luaVar(),
-    spy: luaVar(),
-    _xor: luaVar()
-  };
+    const v = {
+        cipherVar: luaVar(),
+        keyVar: luaVar(),
+        subVar: luaVar(),
+        decryptedVar: luaVar(),
+        fnVar: luaVar(),
+        decryptFn: luaVar(),
+        t0: luaVar(),
+        spy: luaVar(),
+        _xor: luaVar()
+    };
 
-  const cipherCode = toLuaEscapedChunks(ciphertext, v.cipherVar);
-  const keyEscaped = xorKey.map(b => `\\${b}`).join("");
-  const subEscaped = invSub.map(b => `\\${b}`).join("");
+    const cipherCode = toLuaEscapedChunks(ciphertext, v.cipherVar);
+    const keyEscaped = xorKey.map(b => `\\${b}`).join("");
+    const subEscaped = invSub.map(b => `\\${b}`).join("");
 
-  return `${j()}
+    return `${j()}
 local ${v.t0} = tick()
 local ${v.spy} = false
 
@@ -200,6 +242,7 @@ end
 
 ${j()}
 local ${v.decryptedVar} = ${v.decryptFn}(${v.cipherVar}, ${v.keyVar}, ${v.subVar})
+
 ${v.cipherVar} = nil
 ${v.keyVar} = nil
 ${v.subVar} = nil
@@ -227,95 +270,114 @@ ${j()}`;
 
 //  SECURITY HELPERS
 function getClientIp(req) {
-  const fwd = req.headers["x-forwarded-for"] || "";
-  const ip  = fwd.split(",")[0].trim()
-    || req.headers["x-real-ip"]
-    || req.socket?.remoteAddress
-    || "unknown";
-  return ip.replace(/^::ffff:/, "").trim();
+    const fwd = req.headers["x-forwarded-for"] || "";
+    const ip = fwd.split(",")[0].trim() ||
+        req.headers["x-real-ip"] ||
+        req.socket?.remoteAddress ||
+        "unknown";
+    return ip.replace(/^::ffff:/, "").trim();
 }
 
 function isBrowserRequest(req) {
-  const ua = (req.headers["user-agent"] || "").toLowerCase();
-  if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
-  if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
-  if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
-  const accept = (req.headers["accept"] || "").toLowerCase();
-  if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
-  return false;
+    const ua = (req.headers["user-agent"] || "").toLowerCase();
+    if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
+    if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
+    if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
+    const accept = (req.headers["accept"] || "").toLowerCase();
+    if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
+    return false;
 }
 
 function scoreSuspicion(req) {
-  const ua  = req.headers["user-agent"] || "";
-  let score = 0;
-  if (ua.length === 0)      score += CONFIG.executor.penalties.emptyUA;
-  else if (ua.length < 6)   score += CONFIG.executor.penalties.shortUA;
-  else if (ua.length > 380) score += CONFIG.executor.penalties.longUA;
-  for (const { header, score: s } of CONFIG.executor.penaltyHeaders) {
-    if (req.headers[header] !== undefined) score += s;
-  }
-  return score;
+    const ua = req.headers["user-agent"] || "";
+    let score = 0;
+    if (ua.length === 0) score += CONFIG.executor.penalties.emptyUA;
+    else if (ua.length < 6) score += CONFIG.executor.penalties.shortUA;
+    else if (ua.length > 380) score += CONFIG.executor.penalties.longUA;
+    for (const {
+            header,
+            score: s
+        }
+        of CONFIG.executor.penaltyHeaders) {
+        if (req.headers[header] !== undefined) score += s;
+    }
+    return score;
 }
 
 function checkRateLimit(ip) {
-  const { windowMs, maxRequests } = CONFIG.rateLimit;
-  const now   = Date.now();
-  const entry = rateLimitStore.get(ip) || { count: 0, windowStart: now };
-  if (now - entry.windowStart > windowMs) {
-    entry.count       = 1;
-    entry.windowStart = now;
-  } else {
-    entry.count++;
-  }
-  rateLimitStore.set(ip, entry);
-  if (entry.count > maxRequests) {
-    return {
-      limited:    true,
-      retryAfter: Math.ceil((entry.windowStart + windowMs - now) / 1000),
+    const {
+        windowMs,
+        maxRequests
+    } = CONFIG.rateLimit;
+    const now = Date.now();
+    const entry = rateLimitStore.get(ip) || {
+        count: 0,
+        windowStart: now
     };
-  }
-  return { limited: false };
+    if (now - entry.windowStart > windowMs) {
+        entry.count = 1;
+        entry.windowStart = now;
+    } else {
+        entry.count++;
+    }
+    rateLimitStore.set(ip, entry);
+    if (entry.count > maxRequests) {
+        return {
+            limited: true,
+            retryAfter: Math.ceil((entry.windowStart + windowMs - now) / 1000),
+        };
+    }
+    return {
+        limited: false
+    };
 }
 
 function jitterDelay() {
-  const { minMs, maxMs } = CONFIG.jitter;
-  return new Promise(r =>
-    setTimeout(r, minMs + Math.floor(Math.random() * (maxMs - minMs)))
-  );
+    const {
+        minMs,
+        maxMs
+    } = CONFIG.jitter;
+    return new Promise(r =>
+        setTimeout(r, minMs + Math.floor(Math.random() * (maxMs - minMs)))
+    );
 }
 
 //  RESPONSE HEADERS
 function applyBaseHeaders(res) {
-  res.setHeader("X-Content-Type-Options",    "nosniff");
-  res.setHeader("X-Frame-Options",           "DENY");
-  res.setHeader("X-Robots-Tag",              "noindex,nofollow,noarchive");
-  res.setHeader("Cache-Control",             "no-store,no-cache,must-revalidate,private");
-  res.setHeader("Pragma",                    "no-cache");
-  res.setHeader("Expires",                   "0");
-  res.setHeader("Referrer-Policy",           "no-referrer");
-  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-  res.setHeader("Content-Security-Policy",   "default-src 'none'; frame-ancestors 'none'");
-  res.setHeader("X-Request-Id",              randomHex(8));
-  res.removeHeader("X-Powered-By");
-  res.removeHeader("Server");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-Robots-Tag", "noindex,nofollow,noarchive");
+    res.setHeader("Cache-Control", "no-store,no-cache,must-revalidate,private");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+    res.setHeader("X-Request-Id", randomHex(8));
+    res.removeHeader("X-Powered-By");
+    res.removeHeader("Server");
 }
 
 function applyBlockedCSP(res) {
-  res.setHeader("Content-Security-Policy", [
-    "default-src 'none'",
-    "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
-    "style-src 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src https://fonts.gstatic.com",
-    "frame-ancestors 'none'",
-  ].join("; "));
+    res.setHeader("Content-Security-Policy", [
+        "default-src 'none'",
+        "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
+        "style-src 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src https://fonts.gstatic.com",
+        "frame-ancestors 'none'",
+    ].join("; "));
 }
 
 //  HTML BLOCKED PAGE
 function buildBlockedPage() {
-  const { page: p, fonts: f, tailwind: tw } = CONFIG;
-  const sub = p.subtitle.join("<br/>");
-  const wrn = p.warning.lines.join("<br/>");
-  return `<!DOCTYPE html>
+    const {
+        page: p,
+        fonts: f,
+        tailwind: tw
+    } = CONFIG;
+    const sub = p.subtitle.join("<br/>");
+    const wrn = p.warning.lines.join("<br/>");
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -377,88 +439,98 @@ function buildBlockedPage() {
 
 //  ROUTE PARSER
 function parseRoute(req) {
-  const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
-  const m1   = path.match(/\/loaders\/([^/]+\/[^/]+)$/);
-  if (m1) return m1[1];
-  const m2 = path.match(/^\/([^/]+\/[^/]+)$/);
-  if (m2 && !m2[1].startsWith("api/")) return m2[1];
-  try {
-    const u       = new URL(path, "http://localhost");
-    const version = u.searchParams.get("version");
-    const name    = u.searchParams.get("name");
-    if (version && name) return `${version}/${name}`;
-  } catch {}
-  return null;
+    const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
+    const m1 = path.match(/\/loaders\/([^/]+\/[^/]+)$/);
+    if (m1) return m1[1];
+    const m2 = path.match(/^\/([^/]+\/[^/]+)$/);
+    if (m2 && !m2[1].startsWith("api/")) return m2[1];
+    try {
+        const u = new URL(path, "http://localhost");
+        const version = u.searchParams.get("version");
+        const name = u.searchParams.get("name");
+        if (version && name) return `${version}/${name}`;
+    } catch {}
+    return null;
 }
 
 function sendBlocked(res) {
-  applyBlockedCSP(res);
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  return res.status(200).send(buildBlockedPage());
+    applyBlockedCSP(res);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(buildBlockedPage());
 }
 
 //  MAIN HANDLER
 export default async function handler(req, res) {
-  applyBaseHeaders(res);
+    applyBaseHeaders(res);
 
-  if (isBrowserRequest(req)) return sendBlocked(res);
+    if (isBrowserRequest(req)) return sendBlocked(res);
 
-  if (!["GET", "HEAD"].includes(req.method)) {
-    res.setHeader("Allow", "GET, HEAD");
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).end("-- method not allowed");
-  }
+    if (!["GET", "HEAD"].includes(req.method)) {
+        res.setHeader("Allow", "GET, HEAD");
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(405).end("-- method not allowed");
+    }
 
-  if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
+    if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
+        await jitterDelay();
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(200).end("-- error");
+    }
+
+    const ip = getClientIp(req);
+    const rl = checkRateLimit(ip);
+    if (rl.limited) {
+        res.setHeader("Retry-After", String(rl.retryAfter));
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(429).end("-- rate limited");
+    }
+
+    const key = parseRoute(req);
+    if (!key) {
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(404).end("-- not found");
+    }
+
+    const entry = LOADERS[key];
+    if (!entry) {
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(404).end("-- loader not found");
+    }
+
+    if (entry.active === false) {
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(403).end("-- loader disabled");
+    }
+
+    if (req.method === "HEAD") {
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(200).end();
+    }
+
     await jitterDelay();
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).end("-- error");
-  }
 
-  const ip = getClientIp(req);
-  const rl = checkRateLimit(ip);
-  if (rl.limited) {
-    res.setHeader("Retry-After", String(rl.retryAfter));
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).end("-- rate limited");
-  }
-
-  const key = parseRoute(req);
-  if (!key) {
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).end("-- not found");
-  }
-
-  const entry = LOADERS[key];
-  if (!entry) {
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).end("-- loader not found");
-  }
-
-  if (entry.active === false) {
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).end("-- loader disabled");
-  }
-
-  if (req.method === "HEAD") {
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).end();
-  }
-
-  await jitterDelay();
-
-  // SERVER-SIDE FETCH (Tarik script dari GitHub ke Vercel Server)
+    // SERVER-SIDE FETCH
+      // SERVER-SIDE FETCH (Mendukung URL biasa, Raw GitHub, dan Private Repo via Token)
   let rawSource;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 detik timeout
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     
-    const fetchRes = await fetch(entry.url, { 
+    // Otomatis bersihkan format URL refs/heads/ jika ada
+    let targetUrl = entry.url.replace("/refs/heads/", "/");
+
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    };
+
+    // Jika target adalah GitHub dan ada token env, sertakan Authorization Header
+    if (process.env.GITHUB_TOKEN && targetUrl.includes("raw.githubusercontent.com")) {
+      headers["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+
+    const fetchRes = await fetch(targetUrl, { 
       signal: controller.signal,
-      headers: {
-        // MENYEDIAKAN USER-AGENT RESMI AGAR GITHUB TIDAK MEMBLOKIR REQUEST VERCEL
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      }
+      headers: headers
     });
     
     clearTimeout(timeoutId);
@@ -469,10 +541,5 @@ export default async function handler(req, res) {
     rawSource = await fetchRes.text();
   } catch (err) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    // KITA KEMBALIKAN STATUS 200 AGAR ROBLOX TIDAK CRASH 502, TETAPI MENAMPILKAN PESAN ERROR JELAS
-    return res.status(200).end(`warn("[Flycer Gateway] Error fetching source script: ${err.message}. Please make sure your GitHub Repository is PUBLIC and the URL inside loader.js is correct.")`);
+    return res.status(200).end(`warn("[Flycer Gateway] Error fetching source script: ${err.message}. Please check if URL/Branch/Filename is correct.")`);
   }
-
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  return res.status(200).end(buildLoader(rawSource));
-}
