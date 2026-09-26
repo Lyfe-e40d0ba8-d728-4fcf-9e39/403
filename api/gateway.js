@@ -5,42 +5,26 @@ import {
     LOADERS
 } from "./loader.js";
 
-// ══════════════════════════════════════════════════════════════════════════
-//  CONFIG
-// ══════════════════════════════════════════════════════════════════════════
-
+//  CONFIGS
 const CONFIG = {
-
-    // ── Secrets ──────────────────────────────────────────────────────────
     secrets: {
         hmacKey: process.env.HMAC_KEY || "6dd657e1d66ced538d478ce70d9952c077e6afa326576acc991fb581742a5fe3",
-        aesKey: process.env.AES_KEY || "Snyw5WNU8dl!2ngSd9701gAAt8y*I6AK",
     },
-
-    // ── Challenge ─────────────────────────────────────────────────────────
     challenge: {
         expiryMs: 15_000,
         maxStored: 500,
     },
-
-    // ── Rate limit ────────────────────────────────────────────────────────
     rateLimit: {
         windowMs: 60_000,
         maxRequests: 8,
     },
-
-    // ── Suspicion ─────────────────────────────────────────────────────────
     suspicion: {
         blockScore: 10,
     },
-
-    // ── Jitter ────────────────────────────────────────────────────────────
     jitter: {
         minMs: 40,
         maxMs: 130
     },
-
-    // ── Blocked page ──────────────────────────────────────────────────────
     page: {
         title: "Access Denied | Flycer Developments",
         badge: "403 Forbidden",
@@ -59,17 +43,14 @@ const CONFIG = {
                 "Browser access is blocked for security reasons.",
             ],
         },
-        footer: "Flycer Loader \u00A0·\u00A0 Restricted Access",
+        footer: "Flycer Loader · Restricted Access",
     },
-
     fonts: {
         body: "'Inter', sans-serif",
         mono: "'JetBrains Mono', monospace",
         url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
     },
     tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
-
-    // ── Browser detection ─────────────────────────────────────────────────
     browser: {
         uaKeywords: [
             "mozilla", "chrome", "safari", "firefox", "edge", "opera", "brave",
@@ -87,8 +68,6 @@ const CONFIG = {
             "sec-fetch-user", "upgrade-insecure-requests",
         ],
     },
-
-    // ── Executor suspicion scoring ────────────────────────────────────────
     executor: {
         penaltyHeaders: [{
                 header: "referer",
@@ -116,12 +95,8 @@ const CONFIG = {
     },
 };
 
-// ══════════════════════════════════════════════════════════════════════════
-//  IN-MEMORY STORES
-// ══════════════════════════════════════════════════════════════════════════
-
-const challengeStore = new Map(); // Map<id, { nonce, timestamp, loaderKey }>
-const rateLimitStore = new Map(); // Map<ip, { count, windowStart }>
+const challengeStore = new Map();
+const rateLimitStore = new Map();
 
 setInterval(() => {
     const now = Date.now();
@@ -132,10 +107,6 @@ setInterval(() => {
         if (now - d.windowStart > CONFIG.rateLimit.windowMs * 2) rateLimitStore.delete(ip);
     }
 }, 30_000);
-
-// ══════════════════════════════════════════════════════════════════════════
-//  CRYPTO
-// ══════════════════════════════════════════════════════════════════════════
 
 function randomHex(n = 16) {
     return crypto.randomBytes(n).toString("hex");
@@ -169,266 +140,161 @@ function verifySignature(nonce, ts, id, sig) {
     return safeCompare(buildSignature(nonce, ts, id), sig);
 }
 
-// ── AES-256-CBC encrypt ───────────────────────────────────────────────────
-
-function aesEncrypt(plaintext) {
-    const key = crypto.createHash("sha256").update(CONFIG.secrets.aesKey).digest();
-    const iv = crypto.randomBytes(16);
-
-    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-    const ct = Buffer.concat([
-        cipher.update(Buffer.from(plaintext, "utf8")),
-        cipher.final(),
-    ]);
-
+function buildSubTable() {
+    const tbl = Array.from({
+        length: 256
+    }, (_, i) => i);
+    for (let i = 255; i > 0; i--) {
+        const j = crypto.randomInt(0, i + 1);
+        [tbl[i], tbl[j]] = [tbl[j], tbl[i]];
+    }
+    const inv = new Array(256);
+    tbl.forEach((v, k) => {
+        inv[v] = k;
+    });
     return {
-        key: Array.from(key),
-        iv: Array.from(iv),
-        ciphertext: Array.from(ct),
+        fwd: tbl,
+        inv
     };
 }
 
-// ── XOR obfuscation ───────────────────────────────────────────────────────
+function encryptPayload(source) {
+    const payloadBytes = Array.from(Buffer.from(source, "utf8"));
+    const xorKey = crypto.randomBytes(16);
+    const {
+        fwd,
+        inv
+    } = buildSubTable();
 
-function xorLayer(data) {
-    const key = Array.from(crypto.randomBytes(16));
-    const xored = data.map((b, i) => b ^ key[i % key.length]);
+    const layer1 = payloadBytes.map(b => fwd[b]);
+    const layer2 = layer1.map((b, i) => b ^ xorKey[i % xorKey.length]);
+
     return {
-        xored,
-        key
+        ciphertext: layer2,
+        xorKey: Array.from(xorKey),
+        invSub: inv
     };
 }
-
-// ══════════════════════════════════════════════════════════════════════════
-//  PURE LUA AES-256-CBC IMPLEMENTATION
-// ══════════════════════════════════════════════════════════════════════════
-
-function getLuaAES() {
-    return `local function _AES_D(kb,ib,cb)
-local S={99,124,119,123,242,107,111,197,48,1,103,43,254,215,171,118,202,130,201,125,250,89,71,240,173,212,162,175,156,164,114,192,183,253,147,38,54,63,247,204,52,165,229,241,113,216,49,21,4,199,35,195,24,150,5,154,7,18,128,226,235,39,178,117,9,131,44,26,27,110,90,160,82,59,214,179,41,227,47,132,83,209,0,237,32,252,177,91,106,203,190,57,74,76,88,207,208,239,170,251,67,77,51,133,69,249,2,127,80,60,159,168,81,163,64,143,146,157,56,245,188,182,218,33,16,255,243,210,205,12,19,236,95,151,68,23,196,167,126,61,100,93,25,115,96,129,79,220,34,42,144,136,70,238,184,20,222,94,11,219,224,50,58,10,73,6,36,92,194,211,172,98,145,149,228,121,231,200,55,109,141,213,78,169,108,86,244,234,101,122,174,8,186,120,37,46,28,166,180,198,232,221,116,31,75,189,139,138,112,62,181,102,72,3,246,14,97,53,87,185,134,193,29,158,225,248,152,17,105,217,142,148,155,30,135,233,206,85,40,223,140,161,137,13,191,230,66,104,65,153,45,15,176,84,187,22}
-local Si={} for i=0,255 do Si[S[i+1]]=i end
-local function gm(a,b)
-local r=0
-while b>0 do
-if b%2==1 then r=r~a end
-local h=a>=128
-a=(a*2)%256
-if h then a=a~0x1b end
-b=math.floor(b/2)
-end
-return r
-end
-local function ek(key)
-local nk=#key//4
-local nr=nk+6
-local w={}
-for i=0,nk-1 do
-w[i]={key[i*4+1],key[i*4+2],key[i*4+3],key[i*4+4]}
-end
-local rc={0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1b,0x36}
-for i=nk,(4*(nr+1)-1) do
-local t={w[i-1][1],w[i-1][2],w[i-1][3],w[i-1][4]}
-if i%nk==0 then
-t={S[t[2]+1]~rc[i//nk],S[t[3]+1],S[t[4]+1],S[t[1]+1]}
-elseif nk>6 and i%nk==4 then
-t={S[t[1]+1],S[t[2]+1],S[t[3]+1],S[t[4]+1]}
-end
-w[i]={w[i-nk][1]~t[1],w[i-nk][2]~t[2],w[i-nk][3]~t[3],w[i-nk][4]~t[4]}
-end
-return w,nr
-end
-local function ark(st,w,r)
-for c=0,3 do for row=0,3 do st[row+1][c+1]=st[row+1][c+1]~w[r*4+c][row+1] end end
-end
-local function isb(st)
-for c=0,3 do for r=0,3 do st[r+1][c+1]=Si[st[r+1][c+1]] end end
-end
-local function isr(st)
-local tmp={}
-for r=0,3 do
-tmp[r+1]={}
-for c=0,3 do tmp[r+1][c+1]=st[r+1][(c-r)%4+1] end
-end
-for r=0,3 do for c=0,3 do st[r+1][c+1]=tmp[r+1][c+1] end end
-end
-local function imc(st)
-for c=0,3 do
-local a,b,cc,d=st[1][c+1],st[2][c+1],st[3][c+1],st[4][c+1]
-st[1][c+1]=gm(a,14)~gm(b,11)~gm(cc,13)~gm(d,9)
-st[2][c+1]=gm(a,9)~gm(b,14)~gm(cc,11)~gm(d,13)
-st[3][c+1]=gm(a,13)~gm(b,9)~gm(cc,14)~gm(d,11)
-st[4][c+1]=gm(a,11)~gm(b,13)~gm(cc,9)~gm(d,14)
-end
-end
-local function db(blk,w,nr)
-local st={{},{},{},{}}
-for r=0,3 do for c=0,3 do st[r+1][c+1]=blk[r+c*4+1] end end
-ark(st,w,nr)
-for rd=nr-1,1,-1 do isr(st) isb(st) ark(st,w,rd) imc(st) end
-isr(st) isb(st) ark(st,w,0)
-local o={}
-for c=0,3 do for r=0,3 do o[r+c*4+1]=st[r+1][c+1] end end
-return o
-end
-local w,nr=ek(kb)
-local out={}
-local prev={table.unpack(ib)}
-for i=1,#cb,16 do
-local blk={}
-for j=0,15 do blk[j+1]=cb[i+j] or 0 end
-local dec=db(blk,w,nr)
-for j=1,16 do
-if i+j-1<=#cb then out[#out+1]=dec[j]~prev[j] end
-end
-prev=blk
-end
-local pad=out[#out] or 0
-for _=1,pad do table.remove(out) end
-local rs={}
-for _,b in ipairs(out) do rs[#rs+1]=string.char(b) end
-return table.concat(rs)
-end`;
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-//  LUA VARIABLE NAME GENERATOR
-// ══════════════════════════════════════════════════════════════════════════
 
 function luaVar() {
     const alpha = "abcdefghijklmnopqrstuvwxyz";
     const l = alpha[Math.floor(Math.random() * 26)];
-    return `_${l}${crypto.randomBytes(3).toString("hex")}`;
+    return `_${l}${crypto.randomBytes(4).toString("hex")}`;
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-//  LUA LOADER BUILDER
-//  [CHANGED] Sekarang menerima 'url' sebagai parameter, TIDAK LAGI
-//  membaca dari CONFIG.loader.url yang hardcoded. URL didapat dari
-//  lookup LOADERS registry (loader.js) berdasarkan loaderKey yang
-//  sudah diikat ke challenge sebelumnya.
-// ══════════════════════════════════════════════════════════════════════════
+function toLuaEscapedChunks(bytes, varName) {
+    const chunkSize = 250;
+    const lines = [];
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.slice(i, i + chunkSize);
+        const escaped = chunk.map(b => `\\${b}`).join("");
+        if (i === 0) {
+            lines.push(`local ${varName} = "${escaped}"`);
+        } else {
+            lines.push(`${varName} = ${varName} .. "${escaped}"`);
+        }
+    }
+    return lines.join("\n");
+}
 
-function buildLoader(url) {
+function buildLoader(rawSource) {
     const {
-        key: aesKeyBytes,
-        iv: aesIvBytes,
-        ciphertext
-    } = aesEncrypt(url);
-    const {
-        xored: ctXored,
-        key: ctXorKey
-    } = xorLayer(ciphertext);
-    const {
-        xored: ivXored,
-        key: ivXorKey
-    } = xorLayer(aesIvBytes);
-    const {
-        xored: keyXored,
-        key: keyXorKey
-    } = xorLayer(aesKeyBytes);
+        ciphertext,
+        xorKey,
+        invSub
+    } = encryptPayload(rawSource);
 
     const v = {
-        ctX: luaVar(),
-        ctK: luaVar(),
-        ivX: luaVar(),
-        ivK: luaVar(),
-        akX: luaVar(),
-        akK: luaVar(),
-        xorFn: luaVar(),
-        ct: luaVar(),
-        iv: luaVar(),
-        ak: luaVar(),
-        url: luaVar(),
-        hg: luaVar(),
-        ok: luaVar(),
-        src: luaVar(),
-        fn: luaVar(),
+        cipherVar: luaVar(),
+        keyVar: luaVar(),
+        subVar: luaVar(),
+        decryptedVar: luaVar(),
+        fnVar: luaVar(),
+        decryptFn: luaVar(),
         t0: luaVar(),
         spy: luaVar(),
+        _xor: luaVar()
     };
 
-    const j = () => `--[[${randomHex(8)}]]`;
+    const cipherCode = toLuaEscapedChunks(ciphertext, v.cipherVar);
+    const keyEscaped = xorKey.map(b => `\\${b}`).join("");
+    const subEscaped = invSub.map(b => `\\${b}`).join("");
 
-    return `${j()}
-local ${v.t0}=tick()
-local ${v.spy}=false
-${j()}
+    const jVal = () => `--[[${crypto.randomBytes(4).toString("hex")}]]`;
+
+    return `${jVal()}
+local ${v.t0} = tick()
+local ${v.spy} = false
+
 pcall(function()
-  if type(hookfunction)=="function" then
-    local _oh=game.HttpGet
-    hookfunction(game.HttpGet,function(...)
-      ${v.spy}=true
+  if type(hookfunction) == "function" then
+    local _oh = game.HttpGet
+    hookfunction(game.HttpGet, function(...)
+      ${v.spy} = true
       return _oh(...)
     end)
   end
 end)
 if ${v.spy} then return end
-pcall(function() if type(setclipboard)=="function" then setclipboard=function()end end end)
-pcall(function() if type(writefile)=="function" then writefile=function()end end end)
-pcall(function() if type(readfile)=="function" then readfile=function()end end end)
-${j()}
-local ${v.xorFn}=function(d,k)
-  local r={}
-  for i=1,#d do
-    local a=d[i]
-    local b=k[((i-1)%#k)+1]
-    local o=0
-    local p=1
-    for _=0,7 do
-      local ba=math.floor(a/p)%2
-      local bb=math.floor(b/p)%2
-      if ba~=bb then o=o+p end
-      p=p*2
-    end
-    r[i]=o
-  end
-  return r
-end
-${j()}
-local ${v.ctX}={${ctXored.join(",")}}
-local ${v.ctK}={${ctXorKey.join(",")}}
-local ${v.ivX}={${ivXored.join(",")}}
-local ${v.ivK}={${ivXorKey.join(",")}}
-local ${v.akX}={${keyXored.join(",")}}
-local ${v.akK}={${keyXorKey.join(",")}}
-if tick()-${v.t0}>8 then return end
-local ${v.ct}=${v.xorFn}(${v.ctX},${v.ctK})
-local ${v.iv}=${v.xorFn}(${v.ivX},${v.ivK})
-local ${v.ak}=${v.xorFn}(${v.akX},${v.akK})
-${v.ctX}=nil ${v.ctK}=nil
-${v.ivX}=nil ${v.ivK}=nil
-${v.akX}=nil ${v.akK}=nil
-${v.xorFn}=nil
-${j()}
-${getLuaAES()}
-${j()}
-local ${v.url}=_AES_D(${v.ak},${v.iv},${v.ct})
-_AES_D=nil
-${v.ak}=nil ${v.iv}=nil ${v.ct}=nil
-if type(${v.url})~="string" or #${v.url}<10 then ${v.url}=nil return end
-if tick()-${v.t0}>20 then ${v.url}=nil return end
-${j()}
-local ${v.hg}=game.HttpGet
-local ${v.ok},${v.src}=pcall(function()
-  return ${v.hg}(game,${v.url})
-end)
-${v.url}=nil
-${v.hg}=nil
-if not ${v.ok} or type(${v.src})~="string" or #${v.src}==0 then
-  ${v.src}=nil return
-end
-local ${v.fn}=loadstring(${v.src})
-${v.src}=nil
-if type(${v.fn})~="function" then return end
-${v.fn}()
-${v.fn}=nil
-${v.t0}=nil
-collectgarbage("collect")${j()}`;
-}
 
-// ══════════════════════════════════════════════════════════════════════════
-//  LOADER KEY VALIDATION (dipakai untuk parameter ?loader= di /api/challenge)
-// ══════════════════════════════════════════════════════════════════════════
+pcall(function() if type(setclipboard) == "function" then setclipboard = function() end end end)
+pcall(function() if type(writefile) == "function" then writefile = function() end end end)
+
+${jVal()}
+${cipherCode}
+local ${v.keyVar} = "${keyEscaped}"
+local ${v.subVar} = "${subEscaped}"
+
+${jVal()}
+local function ${v.decryptFn}(c, k, s)
+  local cLen = #c
+  local kLen = #k
+  local out = {}
+  local ${v._xor} = (bit32 and bit32.bxor) or function(a, b)
+    local r, p = 0, 1
+    while a > 0 or b > 0 do
+      if a % 2 ~= b % 2 then r = r + p end
+      a = (a - a % 2) / 2
+      b = (b - b % 2) / 2
+      p = p * 2
+    end
+    return r
+  end
+
+  for i = 1, cLen do
+    local cb = string.byte(c, i)
+    local kb = string.byte(k, ((i - 1) % kLen) + 1)
+    out[i] = string.char(string.byte(s, ${v._xor}(cb, kb) + 1))
+  end
+  return table.concat(out)
+end
+
+${jVal()}
+local ${v.decryptedVar} = ${v.decryptFn}(${v.cipherVar}, ${v.keyVar}, ${v.subVar})
+${v.cipherVar} = nil
+${v.keyVar} = nil
+${v.subVar} = nil
+${v.decryptFn} = nil
+
+${jVal()}
+if tick() - ${v.t0} > 15 then return end
+
+local ${v.fnVar} = loadstring(${v.decryptedVar})
+${v.decryptedVar} = nil
+
+if type(${v.fnVar}) ~= "function" then return end
+
+pcall(function()
+  if setfenv then
+    setfenv(${v.fnVar}, getfenv(0))
+  end
+end)
+
+${v.fnVar}()
+${v.fnVar} = nil
+collectgarbage("collect")
+${jVal()}`;
+}
 
 function isValidLoaderKey(key) {
     return typeof key === "string" && /^[\w.-]+\/[\w.-]+$/.test(key);
@@ -451,10 +317,6 @@ function resolveLoaderEntry(key) {
     };
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-//  SECURITY HELPERS
-// ══════════════════════════════════════════════════════════════════════════
-
 function getClientIp(req) {
     const fwd = req.headers["x-forwarded-for"] || "";
     const ip = fwd.split(",")[0].trim() ||
@@ -466,14 +328,11 @@ function getClientIp(req) {
 
 function isBrowserRequest(req) {
     const ua = (req.headers["user-agent"] || "").toLowerCase();
-
     if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
     if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
     if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
-
     const accept = (req.headers["accept"] || "").toLowerCase();
     if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
-
     return false;
 }
 
@@ -550,10 +409,6 @@ function jitterDelay() {
     );
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-//  RESPONSE HEADERS
-// ══════════════════════════════════════════════════════════════════════════
-
 function applyBaseHeaders(res) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
@@ -578,10 +433,6 @@ function applyBlockedCSP(res) {
         "frame-ancestors 'none'",
     ].join("; "));
 }
-
-// ══════════════════════════════════════════════════════════════════════════
-//  HTML BLOCKED PAGE
-// ══════════════════════════════════════════════════════════════════════════
 
 function buildBlockedPage() {
     const {
@@ -655,19 +506,11 @@ function buildBlockedPage() {
 </html>`;
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-//  SHARED HELPERS
-// ══════════════════════════════════════════════════════════════════════════
-
 function sendBlocked(res) {
     applyBlockedCSP(res);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(buildBlockedPage());
 }
-
-// ══════════════════════════════════════════════════════════════════════════
-//  LICENSE / WHITELIST
-// ══════════════════════════════════════════════════════════════════════════
 
 const WHITELIST_LOCAL_PATH = process.env.WHITELIST_FILE ?
     path.resolve(process.cwd(), process.env.WHITELIST_FILE) :
@@ -777,7 +620,7 @@ async function persistWhitelist(list, sha) {
         });
         fs.writeFileSync(target, JSON.stringify(list, null, 2) + "\n", "utf8");
     } catch (e) {
-        throw new Error("Whitelist cannot be persisted. Configure GitHub storage.");
+        throw new Error("Whitelist cannot be persisted.");
     }
 }
 
@@ -833,7 +676,7 @@ async function handleLicenseValidate(req, res) {
     const rl = checkRateLimit(ip);
     if (rl.limited) {
         res.setHeader("Retry-After", String(rl.retryAfter));
-        return licenseError(res, 429, "RATE_LIMITED", "Too many requests. Try again later.");
+        return licenseError(res, 429, "RATE_LIMITED", "Too many requests.");
     }
 
     const body = await parseBody(req);
@@ -848,10 +691,7 @@ async function handleLicenseValidate(req, res) {
     const client = String(body.client || "").trim();
 
     if (!product || !key || !lockType || !identifier) {
-        return licenseError(res, 400, "MISSING_FIELDS", "product, key, lock_type and identifier are required.");
-    }
-    if (key.length > 256 || identifier.length > 512 || product.length > 128) {
-        return licenseError(res, 400, "INVALID_FIELDS", "One or more fields are too long.");
+        return licenseError(res, 400, "MISSING_FIELDS", "Required fields are missing.");
     }
 
     await jitterDelay();
@@ -860,7 +700,7 @@ async function handleLicenseValidate(req, res) {
     try {
         loaded = await loadWhitelist();
     } catch {
-        return licenseError(res, 503, "WHITELIST_UNAVAILABLE", "License service is temporarily unavailable.");
+        return licenseError(res, 503, "WHITELIST_UNAVAILABLE", "License service error.");
     }
 
     const list = loaded.data;
@@ -871,22 +711,22 @@ async function handleLicenseValidate(req, res) {
     );
 
     if (keyEntries.length === 0) {
-        return licenseError(res, 404, "NOT_FOUND", "License key was not found.");
+        return licenseError(res, 404, "NOT_FOUND", "License key not found.");
     }
 
     let candidate = null;
     let rejectCode = "INVALID_LICENSE";
-    let rejectMessage = "License does not match the requested identifier or validity period.";
+    let rejectMessage = "Invalid license.";
 
     for (const entry of keyEntries) {
         if (entry.active !== true) {
             rejectCode = "DISABLED";
-            rejectMessage = "License is disabled.";
+            rejectMessage = "License disabled.";
             continue;
         }
         if (licenseIsExpired(entry, now)) {
             rejectCode = "EXPIRED";
-            rejectMessage = "License has expired.";
+            rejectMessage = "License expired.";
             continue;
         }
         candidate = entry;
@@ -926,12 +766,7 @@ async function handleLicenseValidate(req, res) {
     }
 
     if (hwidList.length >= maxDevices) {
-        return licenseError(
-            res,
-            403,
-            "DEVICE_LIMIT_REACHED",
-            `This key is already bound to the maximum of ${maxDevices} device(s). Contact the seller to reset it.`
-        );
+        return licenseError(res, 403, "DEVICE_LIMIT_REACHED", `Key is already bound to ${maxDevices} device(s).`);
     }
 
     entry["user hwid"] = [...hwidList, identifier];
@@ -939,14 +774,14 @@ async function handleLicenseValidate(req, res) {
     try {
         await persistWhitelist(list, loaded.sha);
     } catch {
-        return licenseError(res, 503, "BIND_PERSIST_FAILED", "License could not be securely bound. Configure persistent whitelist storage.");
+        return licenseError(res, 503, "BIND_PERSIST_FAILED", "Persistence error.");
     }
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     return res.status(200).json({
         success: true,
         code: "BOUND",
-        message: "License activated and bound successfully.",
+        message: "License activated and bound.",
         license: safeLicenseInfo(entry, product, lockType),
         client: client || undefined,
     });
@@ -987,13 +822,7 @@ async function parseBody(req) {
     });
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-//  HANDLER — GET /api/challenge?loader=vX/namaKey
-// ══════════════════════════════════════════════════════════════════════════
-
-// handleChallenge — ubah L5 agar loader opsional
 async function handleChallenge(req, res) {
-
     if (isBrowserRequest(req)) return sendBlocked(res);
     if (!["GET", "HEAD"].includes(req.method)) {
         res.setHeader("Allow", "GET, HEAD");
@@ -1011,9 +840,8 @@ async function handleChallenge(req, res) {
         return res.status(429).end("-- rate limited");
     }
 
-    // [DIUBAH] loader sekarang opsional — tidak wajib ada
     const loaderKeyRaw = getQueryParam(req, "loader");
-    const loaderKey    = loaderKeyRaw ? decodeURIComponent(loaderKeyRaw) : null;
+    const loaderKey = loaderKeyRaw ? decodeURIComponent(loaderKeyRaw) : null;
 
     if (req.method === "HEAD") return res.status(200).end();
 
@@ -1026,42 +854,40 @@ async function handleChallenge(req, res) {
 
     await jitterDelay();
 
-    const nonce        = randomToken(24);
+    const nonce = randomToken(24);
     const challenge_id = randomHex(16);
-    const timestamp    = Date.now();
+    const timestamp = Date.now();
 
-    // loaderKey disimpan, bisa null jika tidak dikirim
-    challengeStore.set(challenge_id, { nonce, timestamp, loaderKey });
+    challengeStore.set(challenge_id, {
+        nonce,
+        timestamp,
+        loaderKey
+    });
     setTimeout(() => challengeStore.delete(challenge_id), CONFIG.challenge.expiryMs * 2);
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    return res.status(200).json({ challenge_id, nonce, timestamp });
+    return res.status(200).json({
+        challenge_id,
+        nonce,
+        timestamp
+    });
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-//  HANDLER — POST /api/gateway | POST /flycer
-// ══════════════════════════════════════════════════════════════════════════
-
 async function handleGateway(req, res) {
-
-    // L1: Browser check
     if (isBrowserRequest(req)) return sendBlocked(res);
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
 
-    // L2: Method guard
     if (!["POST", "HEAD"].includes(req.method)) {
         res.setHeader("Allow", "POST, HEAD");
         return res.status(405).end("-- method not allowed");
     }
 
-    // L3: Suspicion score
     if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
         await jitterDelay();
         return res.status(200).end("-- error");
     }
 
-    // L4: Rate limit
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip);
     if (rl.limited) {
@@ -1069,10 +895,8 @@ async function handleGateway(req, res) {
         return res.status(429).end("-- rate limited");
     }
 
-    // HEAD → no body
     if (req.method === "HEAD") return res.status(200).end();
 
-    // L5: Parse body
     const body = await parseBody(req);
     if (!body) return res.status(400).end("-- bad request");
 
@@ -1083,32 +907,27 @@ async function handleGateway(req, res) {
         signature
     } = body;
 
-    // L6: Required fields
     if (!challenge_id || !nonce || !timestamp || !signature) {
         return res.status(400).end("-- missing fields");
     }
 
-    // L7: Timestamp type
     const ts = Number(timestamp);
     if (!Number.isFinite(ts) || ts <= 0) {
         return res.status(400).end("-- invalid timestamp");
     }
 
-    // L8: Challenge lookup (anti-replay)
     const stored = challengeStore.get(challenge_id);
     if (!stored) {
         await jitterDelay();
         return res.status(403).end("-- challenge expired");
     }
 
-    // L9: Nonce match
     if (stored.nonce !== nonce) {
         challengeStore.delete(challenge_id);
         await jitterDelay();
         return res.status(403).end("-- invalid nonce");
     }
 
-    // L10: Freshness check (max 15 detik)
     const age = Date.now() - ts;
     if (age < 0 || age > CONFIG.challenge.expiryMs) {
         challengeStore.delete(challenge_id);
@@ -1116,16 +935,12 @@ async function handleGateway(req, res) {
         return res.status(403).end("-- challenge expired");
     }
 
-    // L11: HMAC signature (timing-safe)
     if (!verifySignature(nonce, ts, challenge_id, signature)) {
         challengeStore.delete(challenge_id);
         await jitterDelay();
         return res.status(403).end("-- invalid signature");
     }
 
-    // L12: [NEW] Ambil loaderKey yang SUDAH diikat sejak /api/challenge,
-    // lookup ulang ke registry (jaga-jaga kalau di-nonaktifkan setelah
-    // challenge dibuat), lalu konsumsi challenge (one-time use).
     const loaderKey = stored.loaderKey;
     challengeStore.delete(challenge_id);
 
@@ -1137,13 +952,24 @@ async function handleGateway(req, res) {
 
     await jitterDelay();
 
-    // L13: Build & deliver loader untuk URL yang sesuai
-    return res.status(200).end(buildLoader(resolved.entry.url));
-}
+    // SERVER-SIDE FETCH & PROXY DELIVERY
+    let rawSource;
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const fetchRes = await fetch(resolved.entry.url, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
 
-// ══════════════════════════════════════════════════════════════════════════
-//  MAIN EXPORT
-// ══════════════════════════════════════════════════════════════════════════
+        if (!fetchRes.ok) throw new Error("Fetch failed");
+        rawSource = await fetchRes.text();
+    } catch {
+        return res.status(502).end("-- script compilation error");
+    }
+
+    return res.status(200).end(buildLoader(rawSource));
+}
 
 export default async function handler(req, res) {
     applyBaseHeaders(res);
@@ -1153,7 +979,6 @@ export default async function handler(req, res) {
     if (route === "license") return handleLicenseValidate(req, res);
     if (route === "gateway") return handleGateway(req, res);
 
-    // Unknown route
     if (isBrowserRequest(req)) return sendBlocked(res);
     return res.status(404).end("-- not found");
 }
