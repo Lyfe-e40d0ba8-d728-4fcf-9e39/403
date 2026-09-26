@@ -21,7 +21,7 @@ export const LOADERS = {
     },
 
     "v2/premium": {
-        url: "https://raw.githubusercontent.com/Kyoukara/Loader/refs/heads/main/soms.lua",
+        url: "https://raw.githubusercontent.com/Kyoukara/Loader//main/soms.lua",
         active: true,
         note: "SOMS)",
     },
