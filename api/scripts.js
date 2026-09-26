@@ -1,208 +1,142 @@
 import crypto from "crypto";
-import {
-    LOADERS
-} from "./loader.js";
+import { LOADERS } from "./loader.js";
 
-//  CONFIGS
+//  CONFIG
 const CONFIG = {
-    rateLimit: {
-        windowMs: 60_000,
-        maxRequests: 12,
-    },
-    suspicion: {
-        blockScore: 12
-    },
-    jitter: {
-        minMs: 35,
-        maxMs: 110
-    },
+  rateLimit: {
+    windowMs: 60_000,
+    maxRequests: 20,
+  },
+  suspicion: { blockScore: 12 },
+  jitter: { minMs: 25, maxMs: 80 },
 
-    page: {
-        title: "Access Denied | Flycer Developments",
-        badge: "403 Forbidden",
-        heading: {
-            prefix: "ACCESS",
-            highlight: "DENIED"
-        },
-        subtitle: [
-            "This endpoint is restricted.",
-            "Browser access is not permitted on this route.",
-        ],
-        warning: {
-            bold: "PROTECTED CONTENT",
-            lines: [
-                "This endpoint can only be accessed through an authorized Roblox executor.",
-                "Browser access is blocked for security reasons.",
-            ],
-        },
-        footer: "Flycer Loader · Restricted Access",
+  page: {
+    title: "Access Denied | Flycer Developments",
+    badge: "403 Forbidden",
+    heading: { prefix: "ACCESS", highlight: "DENIED" },
+    subtitle: [
+      "This endpoint is restricted.",
+      "Browser access is not permitted on this route.",
+    ],
+    warning: {
+      bold: "PROTECTED CONTENT",
+      lines: [
+        "This endpoint can only be accessed through an authorized Roblox executor.",
+        "Browser access is blocked for security reasons.",
+      ],
     },
+    footer: "Flycer Loader · Restricted Access",
+  },
 
-    fonts: {
-        body: "'Inter', sans-serif",
-        mono: "'JetBrains Mono', monospace",
-        url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
-    },
-    tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+  fonts: {
+    body: "'Inter', sans-serif",
+    mono: "'JetBrains Mono', monospace",
+    url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
+  },
+  tailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
 
-    browser: {
-        uaKeywords: [
-            "mozilla", "chrome", "safari", "firefox", "edge", "opera", "brave",
-            "vivaldi", "webkit", "gecko", "trident", "msie", "headlesschrome",
-            "phantomjs", "selenium", "puppeteer", "playwright", "curl", "wget",
-            "httpie", "postman", "insomnia", "axios", "python-requests", "go-http",
-            "java/", "libwww", "perl", "ruby", "bot", "spider", "crawl", "googlebot",
-            "bingbot", "yandex", "baidu", "facebookexternalhit", "twitterbot",
-            "discord", "telegram", "whatsapp", "slack",
-        ],
-        uaAllowlist: ["roblox"],
-        blockHeaders: [
-            "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
-            "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
-            "sec-fetch-user", "upgrade-insecure-requests",
-        ],
-    },
+  browser: {
+    uaKeywords: [
+      "mozilla","chrome","safari","firefox","edge","opera","brave",
+      "vivaldi","webkit","gecko","trident","msie","headlesschrome",
+      "phantomjs","selenium","puppeteer","playwright","curl","wget",
+      "httpie","postman","insomnia","axios","python-requests","go-http",
+      "java/","libwww","perl","ruby","bot","spider","crawl","googlebot",
+      "bingbot","yandex","baidu","facebookexternalhit","twitterbot",
+      "discord","telegram","whatsapp","slack",
+    ],
+    uaAllowlist: ["roblox"],
+    blockHeaders: [
+      "sec-ch-ua","sec-ch-ua-mobile","sec-ch-ua-platform",
+      "sec-fetch-dest","sec-fetch-mode","sec-fetch-site",
+      "sec-fetch-user","upgrade-insecure-requests",
+    ],
+  },
 
-    executor: {
-        penaltyHeaders: [{
-                header: "referer",
-                score: 3
-            },
-            {
-                header: "referrer",
-                score: 3
-            },
-            {
-                header: "origin",
-                score: 3
-            },
-            {
-                header: "cookie",
-                score: 4
-            },
-        ],
-        penalties: {
-            emptyUA: 5,
-            shortUA: 3,
-            longUA: 2
-        },
-    },
+  executor: {
+    penaltyHeaders: [
+      { header: "referer",  score: 3 },
+      { header: "referrer", score: 3 },
+      { header: "origin",   score: 3 },
+      { header: "cookie",   score: 4 },
+    ],
+    penalties: { emptyUA: 5, shortUA: 3, longUA: 2 },
+  },
 };
 
-//  IN-MEMORY STORE
+//  IN-MEMORY STORE (Rate limit dengan lazy cleanup)
 const rateLimitStore = new Map();
 
-setInterval(() => {
-    const now = Date.now();
-    for (const [ip, d] of rateLimitStore) {
-        if (now - d.windowStart > CONFIG.rateLimit.windowMs * 2) {
-            rateLimitStore.delete(ip);
-        }
+function cleanOldRateLimits() {
+  const now = Date.now();
+  for (const [ip, d] of rateLimitStore) {
+    if (now - d.windowStart > CONFIG.rateLimit.windowMs * 2) {
+      rateLimitStore.delete(ip);
     }
-}, 30_000);
-
-//  CRYPTO HELPERS
-function randomHex(n = 10) {
-    return crypto.randomBytes(n).toString("hex");
+  }
 }
 
-function buildSubTable() {
-    const tbl = Array.from({
-        length: 256
-    }, (_, i) => i);
-    for (let i = 255; i > 0; i--) {
-        const j = crypto.randomInt(0, i + 1);
-        [tbl[i], tbl[j]] = [tbl[j], tbl[i]];
-    }
-    const inv = new Array(256);
-    tbl.forEach((v, k) => {
-        inv[v] = k;
-    });
-    return {
-        fwd: tbl,
-        inv
-    };
-}
-
-// Encrypt payload
-function encryptPayload(source) {
-    const payloadBytes = Array.from(Buffer.from(source, "utf8"));
-    const xorKey = crypto.randomBytes(16);
-    const {
-        fwd,
-        inv
-    } = buildSubTable();
-
-    const layer1 = payloadBytes.map(b => fwd[b]);
-    const layer2 = layer1.map((b, i) => b ^ xorKey[i % xorKey.length]);
-
-    return {
-        ciphertext: layer2,
-        xorKey: Array.from(xorKey),
-        invSub: inv
-    };
+//  CRYPTO & ENCRYPTION HELPERS
+function randomHex(n = 8) {
+  return crypto.randomBytes(n).toString("hex");
 }
 
 function luaVar() {
-    const alpha = "abcdefghijklmnopqrstuvwxyz";
-    const l = alpha[Math.floor(Math.random() * 26)];
-    return `_${l}${crypto.randomBytes(4).toString("hex")}`;
+  const alpha = "abcdefghijklmnopqrstuvwxyz";
+  const l = alpha[Math.floor(Math.random() * 26)];
+  return `_${l}${crypto.randomBytes(4).toString("hex")}`;
 }
 
 function j() {
-    return `--[[${randomHex(6)}]]`;
+  return `--[[${randomHex(4)}]]`;
 }
 
-// Helper untuk memecah data payload biner menjadi representasi string Lua agar memori hemat
-function toLuaEscapedChunks(bytes, varName) {
-    const chunkSize = 250;
-    const lines = [];
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-        const chunk = bytes.slice(i, i + chunkSize);
-        const escaped = chunk.map(b => `\\${b}`).join("");
-        if (i === 0) {
-            lines.push(`local ${varName} = "${escaped}"`);
-        } else {
-            lines.push(`${varName} = ${varName} .. "${escaped}"`);
-        }
-    }
-    return lines.join("\n");
+// Enkripsi Payload ke Base64 + Dynamic XOR Stream
+function encryptPayload(source) {
+  const rawBytes = Buffer.from(source, "utf8");
+  const xorKey = crypto.randomBytes(16);
+  const xored = Buffer.alloc(rawBytes.length);
+
+  for (let i = 0; i < rawBytes.length; i++) {
+    xored[i] = rawBytes[i] ^ xorKey[i % xorKey.length];
+  }
+
+  return {
+    cipherB64: xored.toString("base64"),
+    xorKeyBytes: Array.from(xorKey),
+  };
 }
 
-//  IN-MEMORY DECRYPTION
+//  LUARMOR-STYLE IN-MEMORY LOADER BUILDER
 function buildLoader(rawSource) {
-    const {
-        ciphertext,
-        xorKey,
-        invSub
-    } = encryptPayload(rawSource);
+  if (!rawSource || typeof rawSource !== "string") {
+    throw new Error("Target source script is empty or unavailable.");
+  }
 
-    const v = {
-        cipherVar: luaVar(),
-        keyVar: luaVar(),
-        subVar: luaVar(),
-        decryptedVar: luaVar(),
-        fnVar: luaVar(),
-        decryptFn: luaVar(),
-        t0: luaVar(),
-        spy: luaVar(),
-        _xor: luaVar()
-    };
+  const { cipherB64, xorKeyBytes } = encryptPayload(rawSource);
 
-    const cipherCode = toLuaEscapedChunks(ciphertext, v.cipherVar);
-    const keyEscaped = xorKey.map(b => `\\${b}`).join("");
-    const subEscaped = invSub.map(b => `\\${b}`).join("");
+  const v = {
+    b64Str: luaVar(),
+    keyTbl: luaVar(),
+    decFn: luaVar(),
+    b64Fn: luaVar(),
+    xorFn: luaVar(),
+    resStr: luaVar(),
+    fnVar: luaVar(),
+    t0: luaVar(),
+    spy: luaVar(),
+  };
 
-    return `${j()}
+  return `${j()}
 local ${v.t0} = tick()
 local ${v.spy} = false
 
 pcall(function()
   if type(hookfunction) == "function" then
-    local _oh = game.HttpGet
+    local _h = game.HttpGet
     hookfunction(game.HttpGet, function(...)
       ${v.spy} = true
-      return _oh(...)
+      return _h(...)
     end)
   end
 end)
@@ -212,47 +146,65 @@ pcall(function() if type(setclipboard) == "function" then setclipboard = functio
 pcall(function() if type(writefile) == "function" then writefile = function() end end end)
 
 ${j()}
-${cipherCode}
-local ${v.keyVar} = "${keyEscaped}"
-local ${v.subVar} = "${subEscaped}"
+local ${v.b64Str} = "${cipherB64}"
+local ${v.keyTbl} = {${xorKeyBytes.join(",")}}
 
-${j()}
-local function ${v.decryptFn}(c, k, s)
-  local cLen = #c
-  local kLen = #k
+local function ${v.b64Fn}(data)
+  local b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  local t = {}
+  for i = 1, #b do t[b:sub(i, i)] = i - 1 end
   local out = {}
-  local ${v._xor} = (bit32 and bit32.bxor) or function(a, b)
-    local r, p = 0, 1
-    while a > 0 or b > 0 do
-      if a % 2 ~= b % 2 then r = r + p end
-      a = (a - a % 2) / 2
-      b = (b - b % 2) / 2
-      p = p * 2
+  local buf, bits = 0, 0
+  for i = 1, #data do
+    local c = data:sub(i, i)
+    local val = t[c]
+    if val then
+      buf = buf * 64 + val
+      bits = bits + 6
+      if bits >= 8 then
+        bits = bits - 8
+        out[#out + 1] = string.char(math.floor(buf / (2 ^ bits)) % 256)
+        buf = buf % (2 ^ bits)
+      end
     end
-    return r
-  end
-
-  for i = 1, cLen do
-    local cb = string.byte(c, i)
-    local kb = string.byte(k, ((i - 1) % kLen) + 1)
-    out[i] = string.char(string.byte(s, ${v._xor}(cb, kb) + 1))
   end
   return table.concat(out)
 end
 
 ${j()}
-local ${v.decryptedVar} = ${v.decryptFn}(${v.cipherVar}, ${v.keyVar}, ${v.subVar})
-
-${v.cipherVar} = nil
-${v.keyVar} = nil
-${v.subVar} = nil
-${v.decryptFn} = nil
+local function ${v.decFn}(b64, key)
+  local raw = ${v.b64Fn}(b64)
+  local klen = #key
+  local out = {}
+  local ${v.xorFn} = (bit32 and bit32.bxor) or function(a, b)
+    local r, p = 0, 1
+    while a > 0 or b > 0 do
+      if a % 2 ~= b % 2 then r = r + p end
+      a = math.floor(a / 2)
+      b = math.floor(b / 2)
+      p = p * 2
+    end
+    return r
+  end
+  for i = 1, #raw do
+    local b = string.byte(raw, i)
+    local k = key[((i - 1) % klen) + 1]
+    out[i] = string.char(${v.xorFn}(b, k))
+  end
+  return table.concat(out)
+end
 
 ${j()}
+local ${v.resStr} = ${v.decFn}(${v.b64Str}, ${v.keyTbl})
+${v.b64Str} = nil
+${v.keyTbl} = nil
+${v.decFn} = nil
+${v.b64Fn} = nil
+
 if tick() - ${v.t0} > 15 then return end
 
-local ${v.fnVar} = loadstring(${v.decryptedVar})
-${v.decryptedVar} = nil
+local ${v.fnVar} = loadstring(${v.resStr})
+${v.resStr} = nil
 
 if type(${v.fnVar}) ~= "function" then return end
 
@@ -268,116 +220,142 @@ collectgarbage("collect")
 ${j()}`;
 }
 
+//  SMART GITHUB / REMOTE FETCHER (Auto fallback ke Private Repo API)
+async function fetchSourceScript(targetUrl) {
+  // Bersihkan format refs/heads/ jika ada
+  let url = targetUrl.replace("/refs/heads/", "/");
+
+  const defaultHeaders = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+  };
+
+  // 1. Percobaan Pertama: Direct Raw Fetch
+  try {
+    const res = await fetch(url, {
+      headers: defaultHeaders,
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      return await res.text();
+    }
+  } catch {}
+
+  // 2. Percobaan Kedua: Jika target adalah GitHub dan ada GITHUB_TOKEN (Private Repo Fallback)
+  if (process.env.GITHUB_TOKEN && url.includes("raw.githubusercontent.com")) {
+    const match = url.match(/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)/);
+    if (match) {
+      const [, owner, repo, branch, filePath] = match;
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`;
+
+      const apiRes = await fetch(apiUrl, {
+        headers: {
+          "Authorization": `Bearer ${process.env.GITHUB_TOKEN}`,
+          "Accept": "application/vnd.github.raw",
+          "User-Agent": "Flycer-License-Gateway",
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (apiRes.ok) {
+        return await apiRes.text();
+      }
+    }
+  }
+
+  throw new Error(`Failed to fetch script from source (${url}). Ensure URL is correct or GITHUB_TOKEN is set for private repos.`);
+}
+
 //  SECURITY HELPERS
 function getClientIp(req) {
-    const fwd = req.headers["x-forwarded-for"] || "";
-    const ip = fwd.split(",")[0].trim() ||
-        req.headers["x-real-ip"] ||
-        req.socket?.remoteAddress ||
-        "unknown";
-    return ip.replace(/^::ffff:/, "").trim();
+  const fwd = req.headers["x-forwarded-for"] || "";
+  const ip = fwd.split(",")[0].trim()
+    || req.headers["x-real-ip"]
+    || req.socket?.remoteAddress
+    || "unknown";
+  return ip.replace(/^::ffff:/, "").trim();
 }
 
 function isBrowserRequest(req) {
-    const ua = (req.headers["user-agent"] || "").toLowerCase();
-    if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
-    if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
-    if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
-    const accept = (req.headers["accept"] || "").toLowerCase();
-    if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
-    return false;
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  if (CONFIG.browser.uaAllowlist.some(k => ua.includes(k))) return false;
+  if (CONFIG.browser.uaKeywords.some(k => ua.includes(k))) return true;
+  if (CONFIG.browser.blockHeaders.some(h => req.headers[h] !== undefined)) return true;
+  const accept = (req.headers["accept"] || "").toLowerCase();
+  if (accept.includes("text/html") && accept.includes("application/xhtml")) return true;
+  return false;
 }
 
 function scoreSuspicion(req) {
-    const ua = req.headers["user-agent"] || "";
-    let score = 0;
-    if (ua.length === 0) score += CONFIG.executor.penalties.emptyUA;
-    else if (ua.length < 6) score += CONFIG.executor.penalties.shortUA;
-    else if (ua.length > 380) score += CONFIG.executor.penalties.longUA;
-    for (const {
-            header,
-            score: s
-        }
-        of CONFIG.executor.penaltyHeaders) {
-        if (req.headers[header] !== undefined) score += s;
-    }
-    return score;
+  const ua = req.headers["user-agent"] || "";
+  let score = 0;
+  if (ua.length === 0) score += CONFIG.executor.penalties.emptyUA;
+  else if (ua.length < 6) score += CONFIG.executor.penalties.shortUA;
+  else if (ua.length > 380) score += CONFIG.executor.penalties.longUA;
+  for (const { header, score: s } of CONFIG.executor.penaltyHeaders) {
+    if (req.headers[header] !== undefined) score += s;
+  }
+  return score;
 }
 
 function checkRateLimit(ip) {
-    const {
-        windowMs,
-        maxRequests
-    } = CONFIG.rateLimit;
-    const now = Date.now();
-    const entry = rateLimitStore.get(ip) || {
-        count: 0,
-        windowStart: now
-    };
-    if (now - entry.windowStart > windowMs) {
-        entry.count = 1;
-        entry.windowStart = now;
-    } else {
-        entry.count++;
-    }
-    rateLimitStore.set(ip, entry);
-    if (entry.count > maxRequests) {
-        return {
-            limited: true,
-            retryAfter: Math.ceil((entry.windowStart + windowMs - now) / 1000),
-        };
-    }
+  cleanOldRateLimits();
+  const { windowMs, maxRequests } = CONFIG.rateLimit;
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > windowMs) {
+    entry.count = 1;
+    entry.windowStart = now;
+  } else {
+    entry.count++;
+  }
+  rateLimitStore.set(ip, entry);
+  if (entry.count > maxRequests) {
     return {
-        limited: false
+      limited: true,
+      retryAfter: Math.ceil((entry.windowStart + windowMs - now) / 1000),
     };
+  }
+  return { limited: false };
 }
 
 function jitterDelay() {
-    const {
-        minMs,
-        maxMs
-    } = CONFIG.jitter;
-    return new Promise(r =>
-        setTimeout(r, minMs + Math.floor(Math.random() * (maxMs - minMs)))
-    );
+  const { minMs, maxMs } = CONFIG.jitter;
+  return new Promise(r =>
+    setTimeout(r, minMs + Math.floor(Math.random() * (maxMs - minMs)))
+  );
 }
 
-//  RESPONSE HEADERS
 function applyBaseHeaders(res) {
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("X-Robots-Tag", "noindex,nofollow,noarchive");
-    res.setHeader("Cache-Control", "no-store,no-cache,must-revalidate,private");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-    res.setHeader("Referrer-Policy", "no-referrer");
-    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-    res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
-    res.setHeader("X-Request-Id", randomHex(8));
-    res.removeHeader("X-Powered-By");
-    res.removeHeader("Server");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Robots-Tag", "noindex,nofollow,noarchive");
+  res.setHeader("Cache-Control", "no-store,no-cache,must-revalidate,private");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+  res.setHeader("X-Request-Id", randomHex(8));
+  res.removeHeader("X-Powered-By");
+  res.removeHeader("Server");
 }
 
 function applyBlockedCSP(res) {
-    res.setHeader("Content-Security-Policy", [
-        "default-src 'none'",
-        "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
-        "style-src 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src https://fonts.gstatic.com",
-        "frame-ancestors 'none'",
-    ].join("; "));
+  res.setHeader("Content-Security-Policy", [
+    "default-src 'none'",
+    "script-src 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src https://fonts.gstatic.com",
+    "frame-ancestors 'none'",
+  ].join("; "));
 }
 
-//  HTML BLOCKED PAGE
 function buildBlockedPage() {
-    const {
-        page: p,
-        fonts: f,
-        tailwind: tw
-    } = CONFIG;
-    const sub = p.subtitle.join("<br/>");
-    const wrn = p.warning.lines.join("<br/>");
-    return `<!DOCTYPE html>
+  const { page: p, fonts: f, tailwind: tw } = CONFIG;
+  const sub = p.subtitle.join("<br/>");
+  const wrn = p.warning.lines.join("<br/>");
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -437,109 +415,90 @@ function buildBlockedPage() {
 </html>`;
 }
 
-//  ROUTE PARSER
 function parseRoute(req) {
-    const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
-    const m1 = path.match(/\/loaders\/([^/]+\/[^/]+)$/);
-    if (m1) return m1[1];
-    const m2 = path.match(/^\/([^/]+\/[^/]+)$/);
-    if (m2 && !m2[1].startsWith("api/")) return m2[1];
-    try {
-        const u = new URL(path, "http://localhost");
-        const version = u.searchParams.get("version");
-        const name = u.searchParams.get("name");
-        if (version && name) return `${version}/${name}`;
-    } catch {}
-    return null;
+  const path = (req.url || "").split("?")[0].replace(/\/+$/, "");
+  const m1 = path.match(/\/loaders\/([^/]+\/[^/]+)$/);
+  if (m1) return m1[1];
+  const m2 = path.match(/^\/([^/]+\/[^/]+)$/);
+  if (m2 && !m2[1].startsWith("api/")) return m2[1];
+  try {
+    const u = new URL(req.url, "http://localhost");
+    const version = u.searchParams.get("version");
+    const name = u.searchParams.get("name");
+    if (version && name) return `${version}/${name}`;
+  } catch {}
+  return null;
 }
 
 function sendBlocked(res) {
-    applyBlockedCSP(res);
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(200).send(buildBlockedPage());
+  applyBlockedCSP(res);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.status(200).send(buildBlockedPage());
 }
 
-//  MAIN HANDLER
+//  MAIN HANDLER (With Top-Level Error Boundary)
 export default async function handler(req, res) {
+  try {
     applyBaseHeaders(res);
 
     if (isBrowserRequest(req)) return sendBlocked(res);
 
     if (!["GET", "HEAD"].includes(req.method)) {
-        res.setHeader("Allow", "GET, HEAD");
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(405).end("-- method not allowed");
+      res.setHeader("Allow", "GET, HEAD");
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).end("-- method not allowed");
     }
 
     if (scoreSuspicion(req) >= CONFIG.suspicion.blockScore) {
-        await jitterDelay();
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(200).end("-- error");
+      await jitterDelay();
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).end("-- error");
     }
 
     const ip = getClientIp(req);
     const rl = checkRateLimit(ip);
     if (rl.limited) {
-        res.setHeader("Retry-After", String(rl.retryAfter));
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(429).end("-- rate limited");
+      res.setHeader("Retry-After", String(rl.retryAfter));
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).end(`warn("[Flycer Gateway] Rate limit reached. Try again in ${rl.retryAfter}s.")`);
     }
 
     const key = parseRoute(req);
     if (!key) {
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(404).end("-- not found");
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).end('warn("[Flycer Gateway] Invalid loader route.")');
     }
 
     const entry = LOADERS[key];
     if (!entry) {
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(404).end("-- loader not found");
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).end(`warn("[Flycer Gateway] Loader '${key}' was not found in registry.")`);
     }
 
     if (entry.active === false) {
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(403).end("-- loader disabled");
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).end('warn("[Flycer Gateway] This loader is currently disabled by owner.")');
     }
 
     if (req.method === "HEAD") {
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(200).end();
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).end();
     }
 
     await jitterDelay();
 
-    // SERVER-SIDE FETCH
-      // SERVER-SIDE FETCH (Mendukung URL biasa, Raw GitHub, dan Private Repo via Token)
-  let rawSource;
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
-    
-    // Otomatis bersihkan format URL refs/heads/ jika ada
-    let targetUrl = entry.url.replace("/refs/heads/", "/");
+    // Fetch script dari GitHub Server-Side
+    const rawSource = await fetchSourceScript(entry.url);
 
-    const headers = {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    };
+    // Build payload terenkripsi
+    const luaPayload = buildLoader(rawSource);
 
-    // Jika target adalah GitHub dan ada token env, sertakan Authorization Header
-    if (process.env.GITHUB_TOKEN && targetUrl.includes("raw.githubusercontent.com")) {
-      headers["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
-    }
-
-    const fetchRes = await fetch(targetUrl, { 
-      signal: controller.signal,
-      headers: headers
-    });
-    
-    clearTimeout(timeoutId);
-
-    if (!fetchRes.ok) {
-      throw new Error(`GitHub returned status: ${fetchRes.status}`);
-    }
-    rawSource = await fetchRes.text();
-  } catch (err) {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).end(`warn("[Flycer Gateway] Error fetching source script: ${err.message}. Please check if URL/Branch/Filename is correct.")`);
+    return res.status(200).end(luaPayload);
+
+  } catch (err) {
+    // Top-Level Error Handler (Tidak akan pernah keluar status HTTP 500)
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.status(200).end(`warn("[Flycer Gateway Critical] ${err.message}")`);
   }
+}
